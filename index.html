@@ -41,19 +41,22 @@ h1,h2,h3{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;line-hei
 .cat{margin-top:40px}.cat:first-child{margin-top:6px}
 .cat h2{font-size:1.9rem;color:var(--rose-deep);margin:0 0 18px;display:flex;align-items:center;gap:14px}
 .cat h2::after{content:'';flex:1;height:1.5px;background:linear-gradient(90deg,rgba(242,167,184,.7),transparent)}
-.filters{display:flex;flex-wrap:wrap;gap:14px 24px;align-items:center;justify-content:space-between;margin:0 0 28px;padding:14px 18px;border-radius:22px;background:rgba(255,255,255,.7);border:1.5px solid rgba(242,167,184,.35)}
-.chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{font:inherit;font-size:.95rem;border:1.5px solid var(--blush);background:#fff;color:var(--ink);border-radius:999px;padding:6px 16px;cursor:pointer;transition:background .2s,transform .2s,border-color .2s}
-.chip small{opacity:.6}
-.chip:hover{transform:translateY(-1px);border-color:var(--rose)}
-.chip.on{background:linear-gradient(135deg,var(--rose),var(--rose-deep));border-color:transparent;color:#fff}
-.chip:focus-visible{outline:2px solid var(--lav-deep);outline-offset:3px}
-.range{display:flex;align-items:center;gap:8px;font-size:.95rem}
-.range input{width:92px;padding:7px 12px;border-radius:999px;text-align:center}
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px 16px;align-items:end;margin:0 0 28px;padding:16px 18px;border-radius:22px;background:rgba(255,255,255,.75);border:1.5px solid rgba(242,167,184,.35)}
+.f{display:flex;flex-direction:column;gap:4px;font-size:.85rem;margin:0}
+.f>span{opacity:.75}
+.f.wide{grid-column:span 2}
+select{width:100%;font:inherit;color:inherit;padding:10px 14px;border-radius:14px;border:1.5px solid var(--lav);background:#fff}
+select:focus-visible{outline:2px solid var(--lav-deep);outline-offset:3px}
+.pr{display:flex;align-items:center;gap:8px}
+.pr input{padding:10px 12px;text-align:center}
+.pr select{width:auto}
+.pr input:disabled{opacity:.5;background:#fdf1f4}
+.filters .link.cancel{justify-self:start;padding:10px 0}
+.tl{width:100%;text-align:center;font-size:.9rem;opacity:.75}
 [hidden]{display:none!important}
 .fly{position:fixed;pointer-events:none;z-index:9999;will-change:transform,opacity}
-.total{display:inline-block;margin-top:24px;padding:10px 28px;border-radius:999px;background:rgba(255,255,255,.85);border:1.5px solid rgba(242,167,184,.55);box-shadow:var(--shadow);font-family:'Cormorant Garamond',Georgia,serif;font-size:1.6rem;font-weight:600;color:var(--rose-deep);animation:rise 1s .4s ease both}
-.total small{display:block;font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:400;color:var(--ink);opacity:.7}
+.total{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:24px;animation:rise 1s .4s ease both}
+.tp{padding:8px 22px;border-radius:999px;background:rgba(255,255,255,.85);border:1.5px solid rgba(242,167,184,.55);box-shadow:var(--shadow);font-family:'Cormorant Garamond',Georgia,serif;font-size:1.5rem;font-weight:600;color:var(--rose-deep)}
 main{max-width:1120px;margin:0 auto;padding:12px 20px 80px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:26px}
 .card{
@@ -113,6 +116,24 @@ input{
 }
 #admin h2{font-size:1.7rem}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:640px){
+  .hero{padding:48px 16px 24px}.deco{display:none}
+  .hero h1{font-size:2.6rem}.hero p{font-size:.98rem}
+  main{padding:8px 14px 60px}
+  .grid{grid-template-columns:repeat(2,1fr);gap:14px}
+  .card{border-radius:20px}
+  .body{padding:12px 12px 14px}.body h3{font-size:1.1rem}
+  .btn{padding:8px 14px;font-size:.9rem}.link{font-size:.88rem}
+  .price{font-size:.85rem;padding:2px 10px}
+  .badge{top:8px;left:8px;font-size:.78rem;padding:4px 10px}
+  .tp{font-size:1.2rem;padding:6px 16px}
+  .cat h2{font-size:1.5rem}
+  .filters{grid-template-columns:1fr 1fr;padding:14px;gap:12px}
+  input,select{font-size:16px}
+  dialog{padding:26px 20px 22px}
+  #admin{padding:20px 18px 24px}
+}
+@media (max-width:360px){.grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -133,7 +154,9 @@ input{
       <input id="aUrl" type="url" placeholder="https://…">
       <div class="row" style="margin-top:10px"><button class="btn ghost" type="button" id="aFill">Подтянуть по ссылке</button></div>
       <label for="aTitle">Название</label><input id="aTitle" required maxlength="40">
-      <label for="aPrice">Цена</label><input id="aPrice" placeholder="например, 3 490 ₽">
+      <label for="aPrice">Цена и валюта</label>
+      <div class="pr"><input id="aPrice" inputmode="decimal" placeholder="например, 3490">
+        <select id="aCur" aria-label="Валюта"><option>BYN</option><option>EUR</option><option>USD</option><option>RUB</option><option>PLN</option><option>UAH</option><option>GBP</option><option>CNY</option></select></div>
       <label for="aCat">Категория</label><input id="aCat" list="catList" maxlength="30" placeholder="например, Для дома"><datalist id="catList"></datalist>
       <label for="aImage">Ссылка на фото</label><input id="aImage" type="url" placeholder="https://… (прямая ссылка на картинку)">
       <div class="err" id="aErr" role="status"></div>
@@ -142,13 +165,19 @@ input{
   </section>
 
   <div id="filters" class="filters" hidden>
-    <div id="chips" class="chips"></div>
-    <div class="range" role="group" aria-label="Фильтр по цене">
-      <span>Цена, BYN</span>
-      <input id="fMin" type="number" min="0" inputmode="decimal" placeholder="от" aria-label="Цена от">
-      <input id="fMax" type="number" min="0" inputmode="decimal" placeholder="до" aria-label="Цена до">
-      <button class="link cancel" id="fReset" type="button">Сбросить</button>
+    <label class="f"><span>Категория</span><select id="fCat"></select></label>
+    <div class="f wide"><span>Цена, BYN</span>
+      <div class="pr">
+        <input id="fMin" type="number" min="0" inputmode="decimal" placeholder="от" aria-label="Цена от">
+        <input id="fMax" type="number" min="0" inputmode="decimal" placeholder="до" aria-label="Цена до">
+      </div>
     </div>
+    <label class="f"><span>Сортировка</span><select id="fSort">
+      <option value="">По умолчанию</option>
+      <option value="desc">Цена: от большей к меньшей</option>
+      <option value="asc">Цена: от меньшей к большей</option>
+    </select></label>
+    <button class="link cancel" id="fReset" type="button">Сбросить фильтры</button>
   </div>
   <div id="grid"></div>
   <div id="state" class="state">Загружаем список…</div>
@@ -232,6 +261,14 @@ async function cancelReservation(id, btn) {
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clip = s => { s = String(s ?? ''); return s.length > 40 ? s.slice(0, 39).trimEnd() + '…' : s; };
+const normUrl = u => {
+  u = String(u || '').trim().toLowerCase().replace(/#.*$/, '').replace(/^https?:\/\/(www\.)?/, '');
+  const i = u.indexOf('?');
+  const base = (i < 0 ? u : u.slice(0, i)).replace(/\/+$/, '');
+  const q = i < 0 ? '' : u.slice(i + 1).split('&').filter(x => x && !/^(utm_|fbclid|gclid|yclid)/.test(x)).join('&');
+  return q ? base + '?' + q : base;
+};
+const isDup = u => { const k = normUrl(u); return !!k && items.some(i => normUrl(i.url) === k); };
 const safeUrl = u => /^https?:\/\//i.test(u) ? esc(u) : '';
 const GIFT = '<svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12M12 8c-2-4-6-3-5 0 .6 1.5 3 1 5 0zM12 8c2-4 6-3 5 0-.6 1.5-3 1-5 0z"/></svg>';
 
@@ -255,24 +292,56 @@ async function load() {
   }
 }
 
-function priceInfo(s) {
+const SYM = {BYN: 'BYN', EUR: '€', USD: '$', RUB: '₽', PLN: 'zł', UAH: '₴', GBP: '£', CNY: '¥'};
+// Курсы к 1 BYN по данным НБРБ (за 1 единицу валюты). Меняй вручную, когда захочется обновить.
+const RATES_DATE = '03.10.2026';
+const RATES = {BYN: 1, USD: 3.0051, EUR: 3.3860, RUB: 0.036121, PLN: 0.77375, UAH: 0.067115, GBP: 3.9663, CNY: 0.45035};
+const byCur = (a, b) => a === 'BYN' ? -1 : b === 'BYN' ? 1 : a.localeCompare(b);
+
+function parsePrice(s) {
   s = String(s ?? '').trim();
   const m = s.match(/\d[\d\s\u00a0]*(?:[.,]\d{1,2})?/);
   if (!m) return {};
-  const foreign = /[₽$€₴]|\b(rub|usd|eur|pln)\b|руб/i.test(s) && !/byn|\bbr\b|бел/i.test(s);
-  if (foreign) return {foreign: true};
-  return {n: parseFloat(m[0].replace(/[\s\u00a0]/g, '').replace(',', '.'))};
+  const n = parseFloat(m[0].replace(/[\s\u00a0]/g, '').replace(',', '.'));
+  let cur = null;
+  if (/byn|\bbr\b|бел|р\./i.test(s)) cur = 'BYN';
+  else if (/₽|rub|руб/i.test(s)) cur = 'RUB';
+  else if (/\$|usd/i.test(s)) cur = 'USD';
+  else if (/€|eur/i.test(s)) cur = 'EUR';
+  else if (/zł|pln|злот/i.test(s)) cur = 'PLN';
+  else if (/₴|грн|uah/i.test(s)) cur = 'UAH';
+  else if (/£|gbp/i.test(s)) cur = 'GBP';
+  else if (/¥|cny|юан/i.test(s)) cur = 'CNY';
+  else { const c = s.toUpperCase().match(/\b[A-Z]{3}\b/); if (c) cur = c[0]; }
+  return {n, cur: cur || 'BYN', explicit: !!cur};
 }
+const toByn = (n, cur) => RATES[cur] ? n * RATES[cur] : null;
+const money = (n, cur) => n.toLocaleString('ru-RU', {maximumFractionDigits: 2}) + ' ' + (SYM[cur] || cur);
+const priceLabel = it => {
+  const p = parsePrice(it.price);
+  if (p.n === undefined) return String(it.price ?? '');
+  const b = p.cur !== 'BYN' && toByn(p.n, p.cur);
+  return money(p.n, p.cur) + (b ? ` (≈ ${money(b, 'BYN')})` : '');
+};
 
 function updateTotal() {
   let sum = 0, skipped = 0;
-  items.forEach(it => { const p = priceInfo(it.price); if (p.foreign) skipped++; else if (p.n) sum += p.n; });
-  const el = $('total');
+  const own = {};
+  items.forEach(it => {
+    const p = parsePrice(it.price);
+    if (!p.n) return;
+    const b = toByn(p.n, p.cur);
+    if (b === null) { skipped++; return; }
+    sum += b;
+    if (p.cur !== 'BYN') own[p.cur] = (own[p.cur] || 0) + p.n;
+  });
+  const el = $('total'), parts = Object.keys(own).sort(byCur).map(c => money(own[c], c));
   el.hidden = !sum;
   if (!sum) return;
-  const fmt = sum.toLocaleString('ru-RU', {maximumFractionDigits: 2});
-  el.innerHTML = 'Всего желаний на ' + esc(fmt) + ' BYN' +
-    (skipped ? `<small>без ${skipped} шт. с ценой в другой валюте</small>` : '');
+  el.innerHTML = '<span class="tl">Всего желаний на сумму</span>' +
+    `<span class="tp">${parts.length ? '≈ ' : ''}${esc(money(sum, 'BYN'))}</span>` +
+    (parts.length ? `<span class="tl">из них в валюте: ${esc(parts.join(', '))} · курсы НБРБ на ${RATES_DATE}</span>` : '') +
+    (skipped ? `<span class="tl">без ${skipped} шт.: для их валюты нет курса</span>` : '');
 }
 
 function cardHtml(it) {
@@ -282,7 +351,7 @@ function cardHtml(it) {
       ${it.reserved ? '<span class="badge">Забронировано</span>' : ''}
       <div class="body">
         <h3 title="${esc(it.title)}">${esc(clip(it.title))}</h3>
-        ${it.price ? `<div class="price">${esc(it.price)}</div>` : ''}
+        ${it.price ? `<div class="price">${esc(priceLabel(it))}</div>` : ''}
         <div class="actions">
           ${it.reserved ? `<button class="link cancel" data-cancel="${esc(it.id)}">Отменить бронь</button>` : `<button class="btn" data-id="${esc(it.id)}">Хочу подарить</button>`}
           ${link ? `<a class="link" href="${link}" target="_blank" rel="noopener">В магазин</a>` : ''}
@@ -293,14 +362,24 @@ function cardHtml(it) {
 }
 
 const catOf = it => String(it.category || '').trim() || 'Разное';
-let fCat = '', fMin = null, fMax = null;
+let fCat = '', fMin = null, fMax = null, fSort = '';
+const bynOf = it => { const p = parsePrice(it.price); return p.n === undefined ? null : toByn(p.n, p.cur); };
 
 function passes(it) {
   if (fCat && catOf(it) !== fCat) return false;
-  if (fMin === null && fMax === null) return true;
-  const p = priceInfo(it.price);
-  if (p.n === undefined || isNaN(p.n)) return false;
-  return (fMin === null || p.n >= fMin) && (fMax === null || p.n <= fMax);
+  if (fMin !== null || fMax !== null) {
+    const v = bynOf(it);
+    if (v === null) return false;
+    if (fMin !== null && v < fMin) return false;
+    if (fMax !== null && v > fMax) return false;
+  }
+  return true;
+}
+
+function cmp(a, b) {
+  const va = bynOf(a), vb = bynOf(b);
+  if (va === null || vb === null) return (va === null) - (vb === null);
+  return fSort === 'asc' ? va - vb : vb - va;
 }
 
 function render() {
@@ -309,12 +388,12 @@ function render() {
   if (fCat && !cats.includes(fCat)) fCat = '';
   $('catList').innerHTML = cats.map(c => `<option value="${esc(c)}">`).join('');
   $('filters').hidden = !items.length;
-  $('chips').hidden = cats.length < 2;
-  $('chips').innerHTML = ['', ...cats].map(c => {
-    const n = c ? items.filter(i => catOf(i) === c).length : items.length;
-    return `<button type="button" class="chip ${c === fCat ? 'on' : ''}" data-cat="${esc(c)}">${esc(c || 'Все')} <small>${n}</small></button>`;
-  }).join('');
+  $('fCat').innerHTML = '<option value="">Все категории</option>' + cats.map(c =>
+    `<option value="${esc(c)}">${esc(c)} (${items.filter(i => catOf(i) === c).length})</option>`).join('');
+  $('fCat').value = fCat;
+
   const list = items.filter(passes);
+  if (fSort) list.sort(cmp);
   stateEl.style.display = list.length ? 'none' : 'block';
   stateEl.textContent = items.length ? 'Ничего не нашлось. Попробуй изменить фильтры.' : 'Пока здесь пусто — скоро появятся желания.';
   const groups = {};
@@ -323,16 +402,13 @@ function render() {
     `<section class="cat"><h2>${esc(c)}</h2><div class="grid">${groups[c].map(cardHtml).join('')}</div></section>`).join('');
 }
 
-$('chips').addEventListener('click', e => {
-  const b = e.target.closest('.chip');
-  if (!b) return;
-  fCat = b.dataset.cat; render();
-});
+$('fCat').onchange = e => { fCat = e.target.value; render(); };
+$('fSort').onchange = e => { fSort = e.target.value; render(); };
 const readNum = v => { v = String(v).replace(',', '.').trim(); return v === '' || isNaN(+v) ? null : +v; };
 ['fMin', 'fMax'].forEach(id => $(id).addEventListener('input', () => {
   fMin = readNum($('fMin').value); fMax = readNum($('fMax').value); render();
 }));
-$('fReset').onclick = () => { fCat = ''; fMin = fMax = null; $('fMin').value = ''; $('fMax').value = ''; render(); };
+$('fReset').onclick = () => { fCat = fSort = ''; fMin = fMax = null; $('fMin').value = ''; $('fMax').value = ''; $('fSort').value = ''; render(); };
 
 grid.addEventListener('click', e => {
   const del = e.target.closest('button[data-del]');
@@ -369,6 +445,7 @@ if (ADMIN_SECRET) {
   $('aFill').addEventListener('click', async () => {
     const url = $('aUrl').value.trim(), err = $('aErr'), btn = $('aFill');
     if (!url) { err.textContent = 'Сначала вставь ссылку на товар.'; return; }
+    if (isDup(url)) { err.textContent = 'Такой товар уже есть в списке.'; return; }
     btn.disabled = true; err.textContent = 'Ищем данные на странице…';
     try {
       const r = await api({action: 'preview', secret: ADMIN_SECRET, url});
@@ -386,14 +463,17 @@ if (ADMIN_SECRET) {
   $('addForm').addEventListener('submit', async e => {
     e.preventDefault();
     const err = $('aErr'); err.textContent = 'Добавляем…';
+    let price = $('aPrice').value.trim();
+    if (price && !parsePrice(price).explicit) price += ' ' + $('aCur').value;
+    if (isDup($('aUrl').value)) { err.textContent = 'Такой товар уже есть в списке.'; return; }
     try {
       const r = await api({
         action: 'add', secret: ADMIN_SECRET,
-        title: $('aTitle').value.trim(), price: $('aPrice').value.trim(),
+        title: $('aTitle').value.trim(), price,
         image: $('aImage').value.trim(), url: $('aUrl').value.trim(), category: $('aCat').value.trim()
       });
       if (r.ok) { err.textContent = 'Готово! Желание добавлено.'; e.target.reset(); await load(); }
-      else err.textContent = r.error === 'forbidden' ? 'Неверный секрет в адресе страницы.' : 'Не получилось добавить.';
+      else err.textContent = r.error === 'forbidden' ? 'Неверный секрет в адресе страницы.' : r.error === 'duplicate' ? 'Такой товар уже есть в списке.' : 'Не получилось добавить.';
     } catch (_) { err.textContent = 'Нет связи с сервером.'; }
   });
 }
