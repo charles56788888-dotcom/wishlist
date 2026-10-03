@@ -39,6 +39,8 @@ h1,h2,h3{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;line-hei
 .d3{left:22%;top:200px;font-size:1.2rem;animation-delay:-4s}.d4{right:24%;top:210px;animation-delay:-1s}
 @keyframes float{50%{transform:translateY(-12px) rotate(6deg)}}
 .fly{position:fixed;pointer-events:none;z-index:9999;will-change:transform,opacity}
+.total{display:inline-block;margin-top:24px;padding:10px 28px;border-radius:999px;background:rgba(255,255,255,.85);border:1.5px solid rgba(242,167,184,.55);box-shadow:var(--shadow);font-family:'Cormorant Garamond',Georgia,serif;font-size:1.6rem;font-weight:600;color:var(--rose-deep);animation:rise 1s .4s ease both}
+.total small{display:block;font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:400;color:var(--ink);opacity:.7}
 main{max-width:1120px;margin:0 auto;padding:12px 20px 80px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:26px}
 .card{
@@ -47,10 +49,9 @@ main{max-width:1120px;margin:0 auto;padding:12px 20px 80px}
   transition:transform .35s ease,box-shadow .35s ease;
 }
 .card:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(185,119,125,.25)}
-.pic{position:relative;aspect-ratio:1/1;margin:10px 10px 0;border-radius:20px;background:linear-gradient(160deg,var(--lav),var(--blush));display:grid;place-items:center;overflow:hidden}
-.pic .bg{position:absolute;inset:-20px;width:calc(100% + 40px);height:calc(100% + 40px);object-fit:cover;filter:blur(18px) saturate(1.1);opacity:.55}
-.pic .fg{position:relative;width:100%;height:100%;object-fit:contain;padding:12px;transition:transform .5s ease}
-.card:hover .pic .fg{transform:scale(1.04)}
+.pic{aspect-ratio:4/5;background:linear-gradient(160deg,var(--lav),var(--blush));display:grid;place-items:center;overflow:hidden}
+.pic img{width:100%;height:100%;object-fit:cover;transition:transform .6s ease}
+.card:hover .pic img{transform:scale(1.05)}
 .pic svg{width:56px;height:56px;stroke:#fff;fill:none;stroke-width:1.1}
 .body{padding:18px 20px 22px;display:flex;flex-direction:column;gap:6px;flex:1}
 .body h3{font-size:1.45rem}
@@ -108,6 +109,7 @@ input{
   <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12M12 8c-2-4-6-3-5 0 .6 1.5 3 1 5 0zM12 8c2-4 6-3 5 0-.6 1.5-3 1-5 0z"/></svg>
   <h1>Мой вишлист</h1>
   <p>Если захочется меня порадовать — выбери подарок и нажми «Хочу подарить», чтобы никто не купил то же самое.</p>
+  <div id="total" class="total" hidden></div>
 </header>
 
 <main>
@@ -117,7 +119,7 @@ input{
       <label for="aUrl">Ссылка на товар в магазине</label>
       <input id="aUrl" type="url" placeholder="https://…">
       <div class="row" style="margin-top:10px"><button class="btn ghost" type="button" id="aFill">Подтянуть по ссылке</button></div>
-      <label for="aTitle">Название</label><input id="aTitle" required maxlength="120">
+      <label for="aTitle">Название</label><input id="aTitle" required maxlength="40">
       <label for="aPrice">Цена</label><input id="aPrice" placeholder="например, 3 490 ₽">
       <label for="aImage">Ссылка на фото</label><input id="aImage" type="url" placeholder="https://… (прямая ссылка на картинку)">
       <div class="err" id="aErr" role="status"></div>
@@ -179,6 +181,18 @@ document.addEventListener('click', e => {
   if (b) { const q = b.getBoundingClientRect(); burst(q.left + q.width / 2, q.top + q.height / 2); }
 });
 
+async function deleteItem(id, btn) {
+  const it = items.find(i => String(i.id) === id);
+  if (!confirm('Удалить «' + clip(it ? it.title : '') + '» из списка? Это нельзя отменить.')) return;
+  btn.disabled = true;
+  try {
+    const r = await api({action: 'delete', id, secret: ADMIN_SECRET});
+    if (r.ok) { await load(); return; }
+    alert(r.error === 'forbidden' ? 'Неверный секрет в адресе страницы.' : 'Не получилось удалить.');
+  } catch (_) { alert('Нет связи с сервером.'); }
+  btn.disabled = false;
+}
+
 async function cancelReservation(id, btn) {
   let name = mine[id];
   if (ADMIN_SECRET) { if (!confirm('Снять бронь с этого подарка?')) return; }
@@ -194,6 +208,7 @@ async function cancelReservation(id, btn) {
 }
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clip = s => { s = String(s ?? ''); return s.length > 40 ? s.slice(0, 39).trimEnd() + '…' : s; };
 const safeUrl = u => /^https?:\/\//i.test(u) ? esc(u) : '';
 const GIFT = '<svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12M12 8c-2-4-6-3-5 0 .6 1.5 3 1 5 0zM12 8c2-4 6-3 5 0-.6 1.5-3 1-5 0z"/></svg>';
 
@@ -217,20 +232,42 @@ async function load() {
   }
 }
 
+function priceInfo(s) {
+  s = String(s ?? '').trim();
+  const m = s.match(/\d[\d\s\u00a0]*(?:[.,]\d{1,2})?/);
+  if (!m) return {};
+  const foreign = /[₽$€₴]|\b(rub|usd|eur|pln)\b|руб/i.test(s) && !/byn|\bbr\b|бел/i.test(s);
+  if (foreign) return {foreign: true};
+  return {n: parseFloat(m[0].replace(/[\s\u00a0]/g, '').replace(',', '.'))};
+}
+
+function updateTotal() {
+  let sum = 0, skipped = 0;
+  items.forEach(it => { const p = priceInfo(it.price); if (p.foreign) skipped++; else if (p.n) sum += p.n; });
+  const el = $('total');
+  el.hidden = !sum;
+  if (!sum) return;
+  const fmt = sum.toLocaleString('ru-RU', {maximumFractionDigits: 2});
+  el.innerHTML = 'Всего желаний на ' + esc(fmt) + ' BYN' +
+    (skipped ? `<small>без ${skipped} шт. с ценой в другой валюте</small>` : '');
+}
+
 function render() {
+  updateTotal();
   stateEl.style.display = items.length ? 'none' : 'block';
   stateEl.textContent = 'Пока здесь пусто — скоро появятся желания.';
   grid.innerHTML = items.map(it => {
     const img = safeUrl(it.image), link = safeUrl(it.url);
     return `<article class="card ${it.reserved ? 'reserved' : ''}">
-      <div class="pic">${img ? `<img class="bg" src="${img}" alt="" loading="lazy" onerror="this.remove()"><img class="fg" src="${img}" alt="${esc(it.title)}" loading="lazy" onerror="this.parentNode.innerHTML=GIFT">` : GIFT}</div>
+      <div class="pic">${img ? `<img src="${img}" alt="${esc(it.title)}" loading="lazy" onerror="this.parentNode.innerHTML=GIFT">` : GIFT}</div>
       ${it.reserved ? '<span class="badge">Забронировано</span>' : ''}
       <div class="body">
-        <h3>${esc(it.title)}</h3>
+        <h3 title="${esc(it.title)}">${esc(clip(it.title))}</h3>
         ${it.price ? `<div class="price">${esc(it.price)}</div>` : ''}
         <div class="actions">
           ${it.reserved ? `<button class="link cancel" data-cancel="${esc(it.id)}">Отменить бронь</button>` : `<button class="btn" data-id="${esc(it.id)}">Хочу подарить</button>`}
           ${link ? `<a class="link" href="${link}" target="_blank" rel="noopener">В магазин</a>` : ''}
+          ${ADMIN_SECRET ? `<button class="link cancel" data-del="${esc(it.id)}">Удалить</button>` : ''}
         </div>
       </div>
     </article>`;
@@ -238,12 +275,14 @@ function render() {
 }
 
 grid.addEventListener('click', e => {
+  const del = e.target.closest('button[data-del]');
+  if (del) return deleteItem(del.dataset.del, del);
   const c = e.target.closest('button[data-cancel]');
   if (c) return cancelReservation(c.dataset.cancel, c);
   const b = e.target.closest('button[data-id]');
   if (!b) return;
   current = items.find(i => String(i.id) === b.dataset.id);
-  $('mTitle').textContent = current.title;
+  $('mTitle').textContent = clip(current.title);
   $('mErr').textContent = '';
   modal.showModal();
   $('mName').focus();
@@ -275,7 +314,7 @@ if (ADMIN_SECRET) {
       const r = await api({action: 'preview', secret: ADMIN_SECRET, url});
       if (!r.ok) { err.textContent = r.error === 'forbidden' ? 'Неверный секрет в адресе страницы.' : 'Не получилось открыть страницу.'; }
       else {
-        if (r.title) $('aTitle').value = r.title;
+        if (r.title) $('aTitle').value = clip(r.title);
         if (r.price) $('aPrice').value = r.price;
         if (r.image) $('aImage').value = r.image;
         const miss = [!r.title && 'название', !r.price && 'цену', !r.image && 'фото'].filter(Boolean);
