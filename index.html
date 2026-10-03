@@ -197,6 +197,23 @@ input{
   </form>
 </dialog>
 
+<dialog id="editModal">
+  <form id="editForm" method="dialog">
+    <h2>Изменить подарок</h2>
+    <label for="eTitle">Название</label><input id="eTitle" required maxlength="40">
+    <label for="ePrice">Цена и валюта</label>
+    <div class="pr"><input id="ePrice" inputmode="decimal"><select id="eCur" aria-label="Валюта"></select></div>
+    <label for="eCat">Категория</label><input id="eCat" list="catList" maxlength="30">
+    <label for="eImage">Ссылка на фото</label><input id="eImage" type="url" placeholder="https://…">
+    <label for="eUrl">Ссылка на товар</label><input id="eUrl" type="url" placeholder="https://…">
+    <div class="err" id="eErr" role="status"></div>
+    <div class="row">
+      <button class="btn ghost" type="button" id="eCancel">Отмена</button>
+      <button class="btn" type="submit" id="eOk">Сохранить</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
 // ВСТАВЬ СЮДА URL веб-приложения Google Apps Script (заканчивается на /exec)
 const API_URL = 'https://script.google.com/macros/s/AKfycbzMZFSyCg-GD0dY_r-8XhCfSj7HupXBJdv7WEE3hzJKbj8cJquTA6HdfMqzJqGSBb3OLA/exec';
@@ -211,7 +228,7 @@ const saveMine = () => { try { localStorage.setItem('wl_mine', JSON.stringify(mi
 function burst(x, y, n = 14) {
   if (matchMedia('(prefers-reduced-motion:reduce)').matches) return;
   const set = ['🦄', '💖', '🦄', '💗', '✨', '💕'];
-  const host = modal.open ? modal : document.body; // поверх открытого окна
+  const host = document.querySelector('dialog[open]') || document.body; // поверх открытого окна
   for (let i = 0; i < n; i++) {
     const s = document.createElement('span');
     s.className = 'fly';
@@ -355,7 +372,7 @@ function cardHtml(it) {
         <div class="actions">
           ${it.reserved ? `<button class="link cancel" data-cancel="${esc(it.id)}">Отменить бронь</button>` : `<button class="btn" data-id="${esc(it.id)}">Хочу подарить</button>`}
           ${link ? `<a class="link" href="${link}" target="_blank" rel="noopener">В магазин</a>` : ''}
-          ${ADMIN_SECRET ? `<button class="link cancel" data-del="${esc(it.id)}">Удалить</button>` : ''}
+          ${ADMIN_SECRET ? `<button class="link cancel" data-edit="${esc(it.id)}">Изменить</button><button class="link cancel" data-del="${esc(it.id)}">Удалить</button>` : ''}
         </div>
       </div>
     </article>`;
@@ -411,6 +428,8 @@ const readNum = v => { v = String(v).replace(',', '.').trim(); return v === '' |
 $('fReset').onclick = () => { fCat = fSort = ''; fMin = fMax = null; $('fMin').value = ''; $('fMax').value = ''; $('fSort').value = ''; render(); };
 
 grid.addEventListener('click', e => {
+  const ed = e.target.closest('button[data-edit]');
+  if (ed) return openEdit(ed.dataset.edit);
   const del = e.target.closest('button[data-del]');
   if (del) return deleteItem(del.dataset.del, del);
   const c = e.target.closest('button[data-cancel]');
@@ -477,6 +496,44 @@ if (ADMIN_SECRET) {
     } catch (_) { err.textContent = 'Нет связи с сервером.'; }
   });
 }
+
+// Редактирование (только в админ-режиме)
+let editing = null;
+$('eCur').innerHTML = $('aCur').innerHTML;
+function openEdit(id) {
+  editing = items.find(i => String(i.id) === id);
+  if (!editing) return;
+  $('eTitle').value = String(editing.title || '').slice(0, 40);
+  $('ePrice').value = editing.price || '';
+  $('eCur').value = parsePrice(editing.price).cur || 'BYN';
+  $('eCat').value = editing.category || '';
+  $('eImage').value = editing.image || '';
+  $('eUrl').value = editing.url || '';
+  $('eErr').textContent = '';
+  $('editModal').showModal();
+}
+$('eCancel').onclick = () => $('editModal').close();
+$('editForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!editing || !ADMIN_SECRET) return;
+  const err = $('eErr'), btn = $('eOk');
+  let price = $('ePrice').value.trim();
+  if (price && !parsePrice(price).explicit) price += ' ' + $('eCur').value;
+  const k = normUrl($('eUrl').value);
+  if (k && items.some(i => i !== editing && normUrl(i.url) === k)) { err.textContent = 'Товар с такой ссылкой уже есть в списке.'; return; }
+  btn.disabled = true; err.textContent = 'Сохраняем…';
+  try {
+    const r = await api({
+      action: 'update', secret: ADMIN_SECRET, id: editing.id,
+      title: $('eTitle').value.trim(), price, image: $('eImage').value.trim(),
+      url: $('eUrl').value.trim(), category: $('eCat').value.trim()
+    });
+    if (r.ok) { $('editModal').close(); await load(); }
+    else err.textContent = r.error === 'forbidden' ? 'Неверный секрет в адресе страницы.'
+      : r.error === 'duplicate' ? 'Товар с такой ссылкой уже есть в списке.' : 'Не получилось сохранить.';
+  } catch (_) { err.textContent = 'Нет связи с сервером.'; }
+  btn.disabled = false;
+});
 
 load();
 </script>
