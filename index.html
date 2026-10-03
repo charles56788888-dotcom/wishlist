@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мой вишлист</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Nunito:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --cream:#fff8f1; --peach:#fde3d3; --rose:#d9a5a8; --rose-deep:#b9777d;
+  --lav:#e6dcf3; --lav-deep:#8f7bb0; --beige:#f3e6d8; --ink:#5a4147; --gold:#c9a27a;
+  --shadow:0 10px 30px rgba(185,119,125,.15);
+}
+*{box-sizing:border-box;margin:0}
+body{
+  font-family:'Nunito',system-ui,sans-serif;color:var(--ink);line-height:1.6;min-height:100vh;
+  background:
+    radial-gradient(circle at 10% 0%,var(--lav) 0,transparent 38%),
+    radial-gradient(circle at 95% 8%,var(--peach) 0,transparent 40%),
+    radial-gradient(circle at 50% 100%,var(--beige) 0,transparent 45%),
+    var(--cream);
+  background-attachment:fixed;
+}
+h1,h2,h3{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;line-height:1.15}
+.hero{text-align:center;padding:72px 20px 36px}
+.hero h1{
+  font-size:clamp(2.8rem,8vw,5rem);
+  background:linear-gradient(120deg,var(--rose-deep),var(--gold) 55%,var(--rose-deep));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:rise 1s ease both;
+}
+.hero p{max-width:34rem;margin:14px auto 0;font-size:1.05rem;opacity:.85;animation:rise 1s .2s ease both}
+.hero svg{width:34px;height:34px;stroke:var(--gold);fill:none;stroke-width:1.1;margin-bottom:8px}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+main{max-width:1120px;margin:0 auto;padding:12px 20px 80px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:26px}
+.card{
+  position:relative;background:rgba(255,255,255,.85);border-radius:26px;overflow:hidden;
+  box-shadow:var(--shadow);display:flex;flex-direction:column;
+  transition:transform .35s ease,box-shadow .35s ease;
+}
+.card:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(185,119,125,.25)}
+.pic{aspect-ratio:4/5;background:linear-gradient(160deg,var(--lav),var(--peach));display:grid;place-items:center;overflow:hidden}
+.pic img{width:100%;height:100%;object-fit:cover;transition:transform .6s ease}
+.card:hover .pic img{transform:scale(1.05)}
+.pic svg{width:56px;height:56px;stroke:#fff;fill:none;stroke-width:1.1}
+.body{padding:18px 20px 22px;display:flex;flex-direction:column;gap:6px;flex:1}
+.body h3{font-size:1.45rem}
+.price{color:var(--gold);font-weight:600}
+.actions{margin-top:auto;padding-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn{
+  font:inherit;font-weight:600;border:0;cursor:pointer;border-radius:999px;padding:10px 20px;
+  background:linear-gradient(135deg,var(--rose),var(--rose-deep));color:#fff;
+  box-shadow:0 6px 16px rgba(185,119,125,.3);transition:transform .2s,box-shadow .2s;
+}
+.btn:hover{transform:translateY(-2px);box-shadow:0 10px 20px rgba(185,119,125,.38)}
+.btn:disabled{opacity:.6;cursor:wait;transform:none}
+.link{color:var(--lav-deep);text-decoration:none;font-size:.95rem;border-bottom:1px solid transparent}
+.link:hover{border-color:var(--lav-deep)}
+.btn:focus-visible,.link:focus-visible,input:focus-visible{outline:2px solid var(--lav-deep);outline-offset:3px}
+.card.reserved{background:rgba(230,220,243,.75)}
+.card.reserved .pic{filter:grayscale(.35) opacity(.75)}
+.badge{
+  position:absolute;top:14px;left:14px;background:rgba(255,255,255,.92);color:var(--lav-deep);
+  border-radius:999px;padding:6px 14px;font-weight:600;font-size:.9rem;box-shadow:var(--shadow);
+}
+.state{text-align:center;padding:50px 0;opacity:.8;font-size:1.1rem}
+/* modal */
+dialog{
+  border:0;border-radius:28px;padding:34px 30px 28px;max-width:400px;width:calc(100% - 40px);
+  background:var(--cream);color:var(--ink);box-shadow:0 30px 70px rgba(90,65,71,.3);
+  margin:auto;animation:pop .3s ease;
+}
+dialog::backdrop{background:rgba(143,123,176,.35);backdrop-filter:blur(4px)}
+@keyframes pop{from{opacity:0;transform:scale(.94) translateY(10px)}to{opacity:1;transform:none}}
+dialog h2{font-size:1.9rem;margin-bottom:6px}
+dialog p{font-size:.95rem;opacity:.85;margin-bottom:18px}
+label{display:block;font-size:.9rem;margin:12px 0 4px}
+input{
+  width:100%;font:inherit;color:inherit;padding:11px 16px;border-radius:14px;
+  border:1.5px solid var(--lav);background:#fff;
+}
+.row{display:flex;gap:10px;justify-content:flex-end;margin-top:22px}
+.btn.ghost{background:transparent;color:var(--ink);box-shadow:none;border:1.5px solid var(--lav)}
+.err{color:#b24a5a;font-size:.9rem;margin-top:10px;min-height:1.2em}
+/* admin */
+#admin{
+  display:none;max-width:560px;margin:0 auto 44px;padding:26px 28px 30px;border-radius:26px;
+  background:rgba(255,255,255,.8);box-shadow:var(--shadow);border:1.5px dashed var(--gold);
+}
+#admin h2{font-size:1.7rem}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12M12 8c-2-4-6-3-5 0 .6 1.5 3 1 5 0zM12 8c2-4 6-3 5 0-.6 1.5-3 1-5 0z"/></svg>
+  <h1>Мой вишлист</h1>
+  <p>Если захочется меня порадовать — выбери подарок и нажми «Хочу подарить», чтобы никто не купил то же самое.</p>
+</header>
+
+<main>
+  <section id="admin">
+    <h2>Новое желание</h2>
+    <form id="addForm">
+      <label for="aUrl">Ссылка на товар в магазине</label>
+      <input id="aUrl" type="url" placeholder="https://…">
+      <div class="row" style="margin-top:10px"><button class="btn ghost" type="button" id="aFill">Подтянуть по ссылке</button></div>
+      <label for="aTitle">Название</label><input id="aTitle" required maxlength="120">
+      <label for="aPrice">Цена</label><input id="aPrice" placeholder="например, 3 490 ₽">
+      <label for="aImage">Ссылка на фото</label><input id="aImage" type="url" placeholder="https://… (прямая ссылка на картинку)">
+      <div class="err" id="aErr" role="status"></div>
+      <div class="row"><button class="btn" type="submit">Добавить в список</button></div>
+    </form>
+  </section>
+
+  <div id="grid" class="grid"></div>
+  <div id="state" class="state">Загружаем список…</div>
+</main>
+
+<dialog id="modal">
+  <form id="reserveForm" method="dialog">
+    <h2>Хочу подарить</h2>
+    <p id="mTitle"></p>
+    <label for="mName">Как тебя зовут?</label>
+    <input id="mName" required maxlength="60" autocomplete="given-name">
+    <div class="err" id="mErr" role="status"></div>
+    <div class="row">
+      <button class="btn ghost" type="button" id="mCancel">Отмена</button>
+      <button class="btn" type="submit" id="mOk">Забронировать</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+// ВСТАВЬ СЮДА URL веб-приложения Google Apps Script (заканчивается на /exec)
+const API_URL = 'https://script.google.com/macros/s/AKfycbwn1_MMGYuYOX8vt5OfOSn5hpMR9RCDq9--89zdlNvY5DaUy1WM42g8-5uzqoezls4PGw/exec';
+
+const ADMIN_SECRET = new URLSearchParams(location.search).get('admin');
+const $ = id => document.getElementById(id);
+const grid = $('grid'), stateEl = $('state'), modal = $('modal');
+let items = [], current = null;
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeUrl = u => /^https?:\/\//i.test(u) ? esc(u) : '';
+const GIFT = '<svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12M12 8c-2-4-6-3-5 0 .6 1.5 3 1 5 0zM12 8c2-4 6-3 5 0-.6 1.5-3 1-5 0z"/></svg>';
+
+async function api(payload) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain;charset=utf-8'}, // без preflight
+    body: JSON.stringify(payload)
+  });
+  return res.json();
+}
+
+async function load() {
+  try {
+    const res = await fetch(API_URL);
+    const data = await res.json();
+    items = data.items || [];
+    render();
+  } catch (e) {
+    stateEl.textContent = 'Не получилось загрузить список. Проверь API_URL и обнови страницу.';
+  }
+}
+
+function render() {
+  stateEl.style.display = items.length ? 'none' : 'block';
+  stateEl.textContent = 'Пока здесь пусто — скоро появятся желания.';
+  grid.innerHTML = items.map(it => {
+    const img = safeUrl(it.image), link = safeUrl(it.url);
+    return `<article class="card ${it.reserved ? 'reserved' : ''}">
+      <div class="pic">${img ? `<img src="${img}" alt="${esc(it.title)}" loading="lazy" onerror="this.remove()">` : GIFT}</div>
+      ${it.reserved ? '<span class="badge">Забронировано</span>' : ''}
+      <div class="body">
+        <h3>${esc(it.title)}</h3>
+        ${it.price ? `<div class="price">${esc(it.price)}</div>` : ''}
+        <div class="actions">
+          ${it.reserved ? '' : `<button class="btn" data-id="${esc(it.id)}">Хочу подарить</button>`}
+          ${link ? `<a class="link" href="${link}" target="_blank" rel="noopener">В магазин</a>` : ''}
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+}
+
+grid.addEventListener('click', e => {
+  const b = e.target.closest('button[data-id]');
+  if (!b) return;
+  current = items.find(i => String(i.id) === b.dataset.id);
+  $('mTitle').textContent = current.title;
+  $('mErr').textContent = '';
+  modal.showModal();
+  $('mName').focus();
+});
+$('mCancel').onclick = () => modal.close();
+
+$('reserveForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = $('mName').value.trim();
+  if (!name || !current) return;
+  const ok = $('mOk'); ok.disabled = true; $('mErr').textContent = '';
+  try {
+    const r = await api({action: 'reserve', id: current.id, name});
+    if (r.ok) { current.reserved = true; modal.close(); render(); $('mName').value = ''; }
+    else if (r.error === 'already_reserved') { $('mErr').textContent = 'Этот подарок уже забронировали.'; await load(); }
+    else $('mErr').textContent = 'Не получилось забронировать. Попробуй ещё раз.';
+  } catch (_) { $('mErr').textContent = 'Нет связи с сервером. Попробуй ещё раз.'; }
+  ok.disabled = false;
+});
+
+// Админ-панель: видна только при ?admin=секрет, пароль проверяет сервер
+if (ADMIN_SECRET) {
+  $('admin').style.display = 'block';
+  $('aFill').addEventListener('click', async () => {
+    const url = $('aUrl').value.trim(), err = $('aErr'), btn = $('aFill');
+    if (!url) { err.textContent = 'Сначала вставь ссылку на товар.'; return; }
+    btn.disabled = true; err.textContent = 'Ищем данные на странице…';
+    try {
+      const r = await api({action: 'preview', secret: ADMIN_SECRET, url});
+      if (!r.ok) { err.textContent = r.error === 'forbidden' ? 'Неверный секрет в адресе страницы.' : 'Не получилось открыть страницу.'; }
+      else {
+        if (r.title) $('aTitle').value = r.title;
+        if (r.price) $('aPrice').value = r.price;
+        if (r.image) $('aImage').value = r.image;
+        const miss = [!r.title && 'название', !r.price && 'цену', !r.image && 'фото'].filter(Boolean);
+        err.textContent = miss.length ? 'Не нашлось: ' + miss.join(', ') + '. Заполни вручную.' : 'Готово. Проверь цену и нажми «Добавить».';
+      }
+    } catch (_) { err.textContent = 'Нет связи с сервером.'; }
+    btn.disabled = false;
+  });
+  $('addForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = $('aErr'); err.textContent = 'Добавляем…';
+    try {
+      const r = await api({
+        action: 'add', secret: ADMIN_SECRET,
+        title: $('aTitle').value.trim(), price: $('aPrice').value.trim(),
+        image: $('aImage').value.trim(), url: $('aUrl').value.trim()
+      });
+      if (r.ok) { err.textContent = 'Готово! Желание добавлено.'; e.target.reset(); await load(); }
+      else err.textContent = r.error === 'forbidden' ? 'Неверный секрет в адресе страницы.' : 'Не получилось добавить.';
+    } catch (_) { err.textContent = 'Нет связи с сервером.'; }
+  });
+}
+
+load();
+</script>
+</body>
+</html>
