@@ -38,6 +38,19 @@ h1,h2,h3{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;line-hei
 .d1{left:12%;top:60px}.d2{right:14%;top:96px;font-size:1.4rem;color:var(--gold);animation-delay:-2s}
 .d3{left:22%;top:200px;font-size:1.2rem;animation-delay:-4s}.d4{right:24%;top:210px;animation-delay:-1s}
 @keyframes float{50%{transform:translateY(-12px) rotate(6deg)}}
+.cat{margin-top:40px}.cat:first-child{margin-top:6px}
+.cat h2{font-size:1.9rem;color:var(--rose-deep);margin:0 0 18px;display:flex;align-items:center;gap:14px}
+.cat h2::after{content:'';flex:1;height:1.5px;background:linear-gradient(90deg,rgba(242,167,184,.7),transparent)}
+.filters{display:flex;flex-wrap:wrap;gap:14px 24px;align-items:center;justify-content:space-between;margin:0 0 28px;padding:14px 18px;border-radius:22px;background:rgba(255,255,255,.7);border:1.5px solid rgba(242,167,184,.35)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font:inherit;font-size:.95rem;border:1.5px solid var(--blush);background:#fff;color:var(--ink);border-radius:999px;padding:6px 16px;cursor:pointer;transition:background .2s,transform .2s,border-color .2s}
+.chip small{opacity:.6}
+.chip:hover{transform:translateY(-1px);border-color:var(--rose)}
+.chip.on{background:linear-gradient(135deg,var(--rose),var(--rose-deep));border-color:transparent;color:#fff}
+.chip:focus-visible{outline:2px solid var(--lav-deep);outline-offset:3px}
+.range{display:flex;align-items:center;gap:8px;font-size:.95rem}
+.range input{width:92px;padding:7px 12px;border-radius:999px;text-align:center}
+[hidden]{display:none!important}
 .fly{position:fixed;pointer-events:none;z-index:9999;will-change:transform,opacity}
 .total{display:inline-block;margin-top:24px;padding:10px 28px;border-radius:999px;background:rgba(255,255,255,.85);border:1.5px solid rgba(242,167,184,.55);box-shadow:var(--shadow);font-family:'Cormorant Garamond',Georgia,serif;font-size:1.6rem;font-weight:600;color:var(--rose-deep);animation:rise 1s .4s ease both}
 .total small{display:block;font-family:'Nunito',sans-serif;font-size:.8rem;font-weight:400;color:var(--ink);opacity:.7}
@@ -121,13 +134,23 @@ input{
       <div class="row" style="margin-top:10px"><button class="btn ghost" type="button" id="aFill">Подтянуть по ссылке</button></div>
       <label for="aTitle">Название</label><input id="aTitle" required maxlength="40">
       <label for="aPrice">Цена</label><input id="aPrice" placeholder="например, 3 490 ₽">
+      <label for="aCat">Категория</label><input id="aCat" list="catList" maxlength="30" placeholder="например, Для дома"><datalist id="catList"></datalist>
       <label for="aImage">Ссылка на фото</label><input id="aImage" type="url" placeholder="https://… (прямая ссылка на картинку)">
       <div class="err" id="aErr" role="status"></div>
       <div class="row"><button class="btn" type="submit">Добавить в список</button></div>
     </form>
   </section>
 
-  <div id="grid" class="grid"></div>
+  <div id="filters" class="filters" hidden>
+    <div id="chips" class="chips"></div>
+    <div class="range" role="group" aria-label="Фильтр по цене">
+      <span>Цена, BYN</span>
+      <input id="fMin" type="number" min="0" inputmode="decimal" placeholder="от" aria-label="Цена от">
+      <input id="fMax" type="number" min="0" inputmode="decimal" placeholder="до" aria-label="Цена до">
+      <button class="link cancel" id="fReset" type="button">Сбросить</button>
+    </div>
+  </div>
+  <div id="grid"></div>
   <div id="state" class="state">Загружаем список…</div>
 </main>
 
@@ -252,11 +275,7 @@ function updateTotal() {
     (skipped ? `<small>без ${skipped} шт. с ценой в другой валюте</small>` : '');
 }
 
-function render() {
-  updateTotal();
-  stateEl.style.display = items.length ? 'none' : 'block';
-  stateEl.textContent = 'Пока здесь пусто — скоро появятся желания.';
-  grid.innerHTML = items.map(it => {
+function cardHtml(it) {
     const img = safeUrl(it.image), link = safeUrl(it.url);
     return `<article class="card ${it.reserved ? 'reserved' : ''}">
       <div class="pic">${img ? `<img src="${img}" alt="${esc(it.title)}" loading="lazy" onerror="this.parentNode.innerHTML=GIFT">` : GIFT}</div>
@@ -271,8 +290,49 @@ function render() {
         </div>
       </div>
     </article>`;
-  }).join('');
 }
+
+const catOf = it => String(it.category || '').trim() || 'Разное';
+let fCat = '', fMin = null, fMax = null;
+
+function passes(it) {
+  if (fCat && catOf(it) !== fCat) return false;
+  if (fMin === null && fMax === null) return true;
+  const p = priceInfo(it.price);
+  if (p.n === undefined || isNaN(p.n)) return false;
+  return (fMin === null || p.n >= fMin) && (fMax === null || p.n <= fMax);
+}
+
+function render() {
+  updateTotal();
+  const cats = [...new Set(items.map(catOf))];
+  if (fCat && !cats.includes(fCat)) fCat = '';
+  $('catList').innerHTML = cats.map(c => `<option value="${esc(c)}">`).join('');
+  $('filters').hidden = !items.length;
+  $('chips').hidden = cats.length < 2;
+  $('chips').innerHTML = ['', ...cats].map(c => {
+    const n = c ? items.filter(i => catOf(i) === c).length : items.length;
+    return `<button type="button" class="chip ${c === fCat ? 'on' : ''}" data-cat="${esc(c)}">${esc(c || 'Все')} <small>${n}</small></button>`;
+  }).join('');
+  const list = items.filter(passes);
+  stateEl.style.display = list.length ? 'none' : 'block';
+  stateEl.textContent = items.length ? 'Ничего не нашлось. Попробуй изменить фильтры.' : 'Пока здесь пусто — скоро появятся желания.';
+  const groups = {};
+  list.forEach(it => (groups[catOf(it)] = groups[catOf(it)] || []).push(it));
+  grid.innerHTML = Object.keys(groups).map(c =>
+    `<section class="cat"><h2>${esc(c)}</h2><div class="grid">${groups[c].map(cardHtml).join('')}</div></section>`).join('');
+}
+
+$('chips').addEventListener('click', e => {
+  const b = e.target.closest('.chip');
+  if (!b) return;
+  fCat = b.dataset.cat; render();
+});
+const readNum = v => { v = String(v).replace(',', '.').trim(); return v === '' || isNaN(+v) ? null : +v; };
+['fMin', 'fMax'].forEach(id => $(id).addEventListener('input', () => {
+  fMin = readNum($('fMin').value); fMax = readNum($('fMax').value); render();
+}));
+$('fReset').onclick = () => { fCat = ''; fMin = fMax = null; $('fMin').value = ''; $('fMax').value = ''; render(); };
 
 grid.addEventListener('click', e => {
   const del = e.target.closest('button[data-del]');
@@ -330,7 +390,7 @@ if (ADMIN_SECRET) {
       const r = await api({
         action: 'add', secret: ADMIN_SECRET,
         title: $('aTitle').value.trim(), price: $('aPrice').value.trim(),
-        image: $('aImage').value.trim(), url: $('aUrl').value.trim()
+        image: $('aImage').value.trim(), url: $('aUrl').value.trim(), category: $('aCat').value.trim()
       });
       if (r.ok) { err.textContent = 'Готово! Желание добавлено.'; e.target.reset(); await load(); }
       else err.textContent = r.error === 'forbidden' ? 'Неверный секрет в адресе страницы.' : 'Не получилось добавить.';
