@@ -8,7 +8,9 @@
 <link rel="preconnect" href="https://script.googleusercontent.com">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Nunito:wght@400;600&display=swap" rel="stylesheet">
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Nunito:wght@400;600&display=swap">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Nunito:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Nunito:wght@400;600&display=swap" rel="stylesheet"></noscript>
 <style>
 :root{
   --cream:#fff4f6; --peach:#ffd9dc; --blush:#fbd3dc; --rose:#f2a7b8; --rose-deep:#d9708a;
@@ -25,6 +27,7 @@ body{
     var(--cream);
   background-attachment:fixed;
 }
+@media (max-width:700px){body{background-attachment:scroll}}
 h1,h2,h3{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;line-height:1.15}
 .hero{position:relative;text-align:center;padding:72px 20px 36px}
 .hero h1{
@@ -83,6 +86,7 @@ main{max-width:1120px;margin:0 auto;padding:12px 20px 80px}
 .card{
   position:relative;background:rgba(255,255,255,.92);border:1.5px solid color-mix(in srgb,var(--rose) 40%,transparent);border-radius:28px;overflow:hidden;
   box-shadow:var(--shadow);display:flex;flex-direction:column;
+  content-visibility:auto;contain-intrinsic-size:430px;
   transition:transform .35s ease,box-shadow .35s ease;
 }
 .card:hover{transform:translateY(-6px);box-shadow:0 18px 40px color-mix(in srgb,var(--rose-deep) 25%,transparent)}
@@ -267,7 +271,7 @@ input{
 
 <script>
 // ВСТАВЬ СЮДА URL веб-приложения Google Apps Script (заканчивается на /exec)
-const API_URL = 'https://script.google.com/macros/s/AKfycbyOz9hrnVmvfz8IDT8FWFcbzjDBJKSaZ3zwV5TGpMqWH-1ElEMOb-AglONL8Kr9aSxn/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycby39WS3ICYvWxwBHvSev6ies0GkS44qrb5B30zvr13tzdlmMhYUT-62pFEHYvHAEeoQ/exec';
 
 const ADMIN_SECRET = new URLSearchParams(location.search).get('admin');
 const PROFILE = new URLSearchParams(location.search).get('p');
@@ -414,6 +418,14 @@ function showMissing() {
 const CKEY = 'wl_cache:' + (PROFILE || '');
 let rendered = false;
 
+function prepareItems() {
+  for (const it of items) {
+    it._price = parsePrice(it.price);
+    it._byn = it._price.n === undefined ? null : toByn(it._price.n, it._price.cur);
+    it._cat = catOf(it);
+  }
+}
+
 function applyData(data) {
   ROLE = data.role || '';
   profiles = data.profiles || [];
@@ -421,6 +433,7 @@ function applyData(data) {
   if (!data.profile) return showPicker();
   curSlug = data.profile.slug;
   items = data.items || [];
+  prepareItems();
   $('title').textContent = data.profile.name;
   $('intro').textContent = data.profile.intro || DEFAULT_INTRO;
   document.title = data.profile.name;
@@ -542,7 +555,7 @@ function parsePrice(s) {
 const toByn = (n, cur) => RATES[cur] ? n * RATES[cur] : null;
 const money = (n, cur) => n.toLocaleString('ru-RU', {maximumFractionDigits: 2}) + ' ' + (SYM[cur] || cur);
 const priceLabel = it => {
-  const p = parsePrice(it.price);
+  const p = it._price || parsePrice(it.price);
   if (p.n === undefined) return String(it.price ?? '');
   const b = p.cur !== 'BYN' && toByn(p.n, p.cur);
   return money(p.n, p.cur) + (b ? ` (≈ ${money(b, 'BYN')})` : '');
@@ -552,9 +565,9 @@ function updateTotal() {
   let sum = 0, skipped = 0;
   const own = {};
   items.forEach(it => {
-    const p = parsePrice(it.price);
+    const p = it._price || parsePrice(it.price);
     if (!p.n) return;
-    const b = toByn(p.n, p.cur);
+    const b = it._byn !== undefined ? it._byn : toByn(p.n, p.cur);
     if (b === null) { skipped++; return; }
     sum += b;
     if (p.cur !== 'BYN') own[p.cur] = (own[p.cur] || 0) + p.n;
@@ -585,9 +598,9 @@ function cardHtml(it) {
     </article>`;
 }
 
-const catOf = it => String(it.category || '').trim() || 'Разное';
+const catOf = it => it._cat || (String(it.category || '').trim() || 'Разное');
 let fCat = '', fMin = null, fMax = null, fSort = '';
-const bynOf = it => { const p = parsePrice(it.price); return p.n === undefined ? null : toByn(p.n, p.cur); };
+const bynOf = it => it._byn !== undefined ? it._byn : (() => { const p = parsePrice(it.price); return p.n === undefined ? null : toByn(p.n, p.cur); })();
 
 function passes(it) {
   if (fCat && catOf(it) !== fCat) return false;
@@ -608,12 +621,14 @@ function cmp(a, b) {
 
 function render() {
   updateTotal();
-  const cats = [...new Set(items.map(catOf))];
+  const counts = Object.create(null);
+  for (const it of items) { const c = catOf(it); counts[c] = (counts[c] || 0) + 1; }
+  const cats = Object.keys(counts);
   if (fCat && !cats.includes(fCat)) fCat = '';
   $('catList').innerHTML = cats.map(c => `<option value="${esc(c)}">`).join('');
   $('filters').hidden = !items.length;
   $('fCat').innerHTML = '<option value="">Все категории</option>' + cats.map(c =>
-    `<option value="${esc(c)}">${esc(c)} (${items.filter(i => catOf(i) === c).length})</option>`).join('');
+    `<option value="${esc(c)}">${esc(c)} (${counts[c]})</option>`).join('');
   $('fCat').value = fCat;
 
   const list = items.filter(passes);
@@ -629,8 +644,803 @@ function render() {
 $('fCat').onchange = e => { fCat = e.target.value; render(); };
 $('fSort').onchange = e => { fSort = e.target.value; render(); };
 const readNum = v => { v = String(v).replace(',', '.').trim(); return v === '' || isNaN(+v) ? null : +v; };
+let filterTimer = 0;
 ['fMin', 'fMax'].forEach(id => $(id).addEventListener('input', () => {
-  fMin = readNum($('fMin').value); fMax = readNum($('fMax').value); render();
+  fMin = readNum($('fMin').value); fMax = readNum($('fMax').value);
+  clearTimeout(filterTimer); filterTimer = setTimeout(render, 90);
+}));
+$('fReset').onclick = () => { fCat = fSort = ''; fMin = fMax = null; $('fMin').value = ''; $('fMax').value = ''; $('fSort').value = ''; render(); };
+
+grid.addEventListener('click', e => {
+  const ns = e.target.closest('button[data-newsecret]');
+  if (ns) return newSecret(ns.dataset.newsecret);
+  const ed = e.target.closest('button[data-edit]');
+  if (ed) return openEdit(ed.dataset.edit);
+  const del = e.target.closest('button[data-del]');
+  if (del) return deleteItem(del.dataset.del, del);
+  const c = e.target.closest('button[data-cancel]');
+  if (c) return cancelReservation(c.dataset.cancel, c);
+  const b = e.target.closest('button[data-id]');
+  if (!b) return;
+  current = items.find(i => String(i.id) === b.dataset.id);
+  $('mTitle').textContent = clip(current.title);
+  $('mErr').textContent = '';
+  modal.showModal();
+  $('mName').focus();
+});
+$('mCancel').onclick = () => modal.close();
+
+$('reserveForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = $('mName').value.trim();
+  if (!name || !current) return;
+  const ok = $('mOk'); ok.disabled = true; $('mErr').textContent = '';
+  try {
+    const r = await api({action: 'reserve', id: current.id, name});
+    if (r.ok) { mine[current.id] = name; saveMine(); current.reserved = true; modal.close(); render(); $('mName').value = ''; burst(innerWidth / 2, innerHeight / 2, 36); }
+    else if (r.error === 'already_reserved') { $('mErr').textContent = 'Этот подарок уже забронировали.'; await load(); }
+    else $('mErr').textContent = 'Не получилось забронировать. Попробуй ещё раз.';
+  } catch (_) { $('mErr').textContent = 'Нет связи с сервером. Попробуй ещё раз.'; }
+  ok.disabled = false;
+});
+
+// Админ-панель: видна только при ?admin=секрет, пароль проверяет сервер
+if (ADMIN_SECRET) {
+  document.addEventListener('click', e => {
+    const cp = e.target.closest('button[data-copy]');
+    if (cp) copyLink(cp);
+  });
+  $('profForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = $('pErr'), out = $('pResult');
+    err.textContent = 'Создаём…'; out.innerHTML = '';
+    try {
+      const r = await api({action: 'addProfile', secret: ADMIN_SECRET, name: $('pName').value.trim(),
+        intro: $('pIntro').value.trim(), slug: $('pSlug').value.trim(), newSecret: $('pSecret').value.trim()});
+      if (r.ok) {
+        err.textContent = '';
+        const guest = absUrl(r.slug), adm = absUrl(r.slug, r.secret);
+        out.innerHTML = 'Профиль создан. Ссылка для гостей:<br><code>' + esc(guest) + '</code> <button type="button" class="link cancel" data-copy="' + esc(guest) + '">копировать</button>' +
+          '<br>Админ-ссылка владельца:<br><code>' + esc(adm) + '</code> <button type="button" class="link cancel" data-copy="' + esc(adm) + '">копировать</button>';
+        e.target.reset();
+        await load();
+        return;
+      }
+      err.textContent = r.error === 'forbidden' ? 'Нужен главный секрет в адресе страницы.'
+        : r.error === 'exists' ? 'Профиль с таким адресом уже есть.'
+        : r.error === 'bad_slug' ? 'Адрес: только латинские буквы, цифры и дефис.'
+        : r.error === 'bad_secret' ? 'Секрет: 6-40 символов (латиница, цифры, _ и -), не совпадающий с главным.'
+        : r.error === 'unknown_action' ? STALE : 'Не получилось создать: ' + (r.error || 'нет ответа');
+    } catch (_) { err.textContent = 'Нет связи с сервером.'; }
+  });
+  $('aFill').addEventListener('click', async () => {
+    const url = $('aUrl').value.trim(), err = $('aErr'), btn = $('aFill');
+    if (!url) { err.textContent = 'Сначала вставь ссылку на товар.'; return; }
+    if (isDup(url)) { err.textContent = 'Такой товар уже есть в списке.'; return; }
+    btn.disabled = true; err.textContent = 'Ищем данные на странице…';
+    try {
+      const r = await api({action: 'preview', secret: ADMIN_SECRET, url});
+      if (!r.ok) { err.textContent = r.error === 'forbidden' ? 'Неверный секрет в адресе страницы.' : 'Не получилось открыть страницу.'; }
+      else {
+        if (r.title) $('aTitle').value = clip(r.title);
+        if (r.price) $('aPrice').value = r.price;
+        if (r.image) $('aImage').value = r.image;
+        const miss = [!r.title && 'название', !r.price && 'цену', !r.image && 'фото'].filter(Boolean);
+        err.textContent = miss.length ? 'Не нашлось: ' + miss.join(', ') + '. Заполни вручную.' : 'Готово. Проверь цену и нажми «Добавить».';
+      }
+    } catch (_) { err.textContent = 'Нет связи с сервером.'; }
+    btn.disabled = false;
+  });
+  $('addForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = $('aErr'); err.textContent = 'Добавляем…';
+    let price = $('aPrice').value.trim();
+    if (price && !parsePrice(price).explicit) price += ' ' + $('aCur').value;
+    if (isDup($('aUrl').value)) { err.textContent = 'Такой товар уже есть в списке.'; return; }
+    try {
+      const r = await api({
+        action: 'add', secret: ADMIN_SECRET,
+        title: $('aTitle').value.trim(), price,
+        image: $('aImage').value.trim(), url: $('aUrl').value.trim(), category: $('aCat').value.trim()
+      });
+      if (r.ok) { err.textContent = 'Готово! Желание добавлено.'; e.target.reset(); await load(); }
+      else err.textContent = r.error === 'forbidden' ? 'Неверный секрет в адресе страницы.' : r.error === 'duplicate' ? 'Такой товар уже есть в списке.' : r.error === 'unknown_action' ? STALE : 'Не получилось добавить: ' + (r.error || 'нет ответа');
+    } catch (_) { err.textContent = 'Нет связи с сервером.'; }
+  });
+}
+
+// Редактирование (только в админ-режиме)
+let editing = null;
+$('eCur').innerHTML = $('aCur').innerHTML;
+function openEdit(id) {
+  editing = items.find(i => String(i.id) === id);
+  if (!editing) return;
+  $('eTitle').value = String(editing.title || '').slice(0, 40);
+  $('ePrice').value = editing.price || '';
+  $('eCur').value = parsePrice(editing.price).cur || 'BYN';
+  $('eCat').value = editing.category || '';
+  $('eImage').value = editing.image || '';
+  $('eUrl').value = editing.url || '';
+  $('eErr').textContent = '';
+  $('editModal').showModal();
+}
+$('eCancel').onclick = () => $('editModal').close();
+$('editForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!editing || !ROLE) return;
+  const err = $('eErr'), btn = $('eOk');
+  let price = $('ePrice').value.trim();
+  if (price && !parsePrice(price).explicit) price += ' ' + $('eCur').value;
+  const k = normUrl($('eUrl').value);
+  if (k && items.some(i => i !== editing && normUrl(i.url) === k)) { err.textContent = 'Товар с такой ссылкой уже есть в списке.'; return; }
+  btn.disabled = true; err.textContent = 'Сохраняем…';
+  try {
+    const r = await api({
+      action: 'update', secret: ADMIN_SECRET, id: editing.id,
+      title: $('eTitle').value.trim(), price, image: $('eImage').value.trim(),
+      url: $('eUrl').value.trim(), category: $('eCat').value.trim()
+    });
+    if (r.ok) { $('editModal').close(); await load(); }
+    else err.textContent = r.error === 'forbidden' ? 'Неверный секрет в адресе страницы.'
+      : r.error === 'duplicate' ? 'Товар с такой ссылкой уже есть в списке.' : r.error === 'unknown_action' ? STALE : 'Не получилось сохранить: ' + (r.error || 'нет ответа');
+  } catch (_) { err.textContent = 'Нет связи с сервером.'; }
+  btn.disabled = false;
+});
+
+load();
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Мой вишлист</title>
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Nunito:wght@400;600&display=swap">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Nunito:wght@400;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Nunito:wght@400;600&display=swap" rel="stylesheet"></noscript>
+<style>
+:root{
+  --cream:#fff4f6; --peach:#ffd9dc; --blush:#fbd3dc; --rose:#f2a7b8; --rose-deep:#d9708a;
+  --lav:#f0dff5; --lav-deep:#a07ab8; --beige:#ffe9e3; --ink:#5e3a46; --gold:#c9956b;
+  --shadow:0 12px 32px color-mix(in srgb,var(--rose-deep) 18%,transparent);
+}
+*{box-sizing:border-box;margin:0}
+body{
+  font-family:'Nunito',system-ui,sans-serif;color:var(--ink);line-height:1.6;min-height:100vh;
+  background:
+    radial-gradient(circle at 8% 0%,var(--blush) 0,transparent 42%),
+    radial-gradient(circle at 95% 10%,var(--lav) 0,transparent 40%),
+    radial-gradient(circle at 50% 100%,var(--peach) 0,transparent 50%),
+    var(--cream);
+  background-attachment:fixed;
+}
+@media (max-width:700px){body{background-attachment:scroll}}
+h1,h2,h3{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;line-height:1.15}
+.hero{position:relative;text-align:center;padding:72px 20px 36px}
+.hero h1{
+  font-size:clamp(2.8rem,8vw,5rem);
+  background:linear-gradient(120deg,var(--rose-deep),var(--gold) 55%,var(--rose-deep));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:rise 1s ease both;
+}
+.hero p{max-width:34rem;margin:14px auto 0;font-size:1.05rem;opacity:.85;animation:rise 1s .2s ease both}
+.hero svg{width:34px;height:34px;stroke:var(--gold);fill:none;stroke-width:1.1;margin-bottom:8px}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.deco{position:absolute;color:var(--rose);opacity:.7;font-size:2rem;animation:float 6s ease-in-out infinite;pointer-events:none}
+.d1{left:12%;top:60px}.d2{right:14%;top:96px;font-size:1.4rem;color:var(--gold);animation-delay:-2s}
+.d3{left:22%;top:200px;font-size:1.2rem;animation-delay:-4s}.d4{right:24%;top:210px;animation-delay:-1s}
+@keyframes float{50%{transform:translateY(-12px) rotate(6deg)}}
+.cat{margin-top:40px}.cat:first-child{margin-top:6px}
+.cat h2{font-size:1.9rem;color:var(--rose-deep);margin:0 0 18px;display:flex;align-items:center;gap:14px}
+.cat h2::after{content:'';flex:1;height:1.5px;background:linear-gradient(90deg,color-mix(in srgb,var(--rose) 70%,transparent),transparent)}
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px 16px;align-items:end;margin:0 0 28px;padding:16px 18px;border-radius:22px;background:rgba(255,255,255,.75);border:1.5px solid color-mix(in srgb,var(--rose) 35%,transparent)}
+.f{display:flex;flex-direction:column;gap:4px;font-size:.85rem;margin:0}
+.f>span{opacity:.75}
+.f.wide{grid-column:span 2}
+select{width:100%;font:inherit;color:inherit;padding:10px 14px;border-radius:14px;border:1.5px solid var(--lav);background:#fff}
+select:focus-visible{outline:2px solid var(--lav-deep);outline-offset:3px}
+.pr{display:flex;align-items:center;gap:8px}
+.pr input{padding:10px 12px;text-align:center}
+.pr select{width:auto}
+.pr input:disabled{opacity:.5;background:color-mix(in srgb,var(--blush) 25%,#fff)}
+.filters .link.cancel{justify-self:start;padding:10px 0}
+.tl{width:100%;text-align:center;font-size:.9rem;opacity:.75}
+.back{position:absolute;left:20px;top:18px;z-index:2}
+.pcard{padding:30px 22px;text-align:center;align-items:center;text-decoration:none;color:inherit;gap:10px}
+.pcard svg{width:44px;height:44px;stroke:var(--gold);fill:none;stroke-width:1.1}
+.pcard h3{font-size:1.7rem}
+.prow{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between;padding:16px 20px;border-radius:22px;background:rgba(255,255,255,.85);border:1.5px solid color-mix(in srgb,var(--rose) 40%,transparent);box-shadow:var(--shadow);margin-bottom:12px}
+.prow small{display:block;opacity:.6;font-size:.82rem;word-break:break-all}
+.pact{display:flex;flex-wrap:wrap;gap:6px 16px}
+.pres{font-size:.88rem;margin-top:8px;word-break:break-all}
+.themes{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:10px;margin:8px 0 4px}
+.sw{font:inherit;font-size:.82rem;color:var(--ink);background:#fff;border:2px solid transparent;border-radius:16px;padding:10px 6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 2px 8px rgba(0,0,0,.06);transition:transform .2s}
+.sw:hover{transform:translateY(-2px)}
+.sw i{width:34px;height:34px;border-radius:50%;display:block;box-shadow:inset 0 0 0 2px rgba(255,255,255,.7)}
+.sw.on{border-color:var(--rose-deep)}
+.sw:focus-visible,.pre:focus-visible{outline:2px solid var(--lav-deep);outline-offset:3px}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.pre{font:inherit;border:1.5px solid var(--blush);background:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}
+.sk .pic{background:linear-gradient(100deg,var(--blush) 30%,color-mix(in srgb,var(--blush) 40%,#fff) 50%,var(--blush) 70%);background-size:200% 100%;animation:shine 1.3s linear infinite}
+.sk .line{height:14px;border-radius:8px;background:color-mix(in srgb,var(--blush) 60%,#fff);margin:6px 0}
+@keyframes shine{to{background-position:-200% 0}}
+[hidden]{display:none!important}
+.fly{position:fixed;pointer-events:none;z-index:9999;will-change:transform,opacity}
+.total{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:24px;animation:rise 1s .4s ease both}
+.tp{padding:8px 22px;border-radius:999px;background:rgba(255,255,255,.85);border:1.5px solid color-mix(in srgb,var(--rose) 55%,transparent);box-shadow:var(--shadow);font-family:'Cormorant Garamond',Georgia,serif;font-size:1.5rem;font-weight:600;color:var(--rose-deep)}
+main{max-width:1120px;margin:0 auto;padding:12px 20px 80px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:26px}
+.card{
+  position:relative;background:rgba(255,255,255,.92);border:1.5px solid color-mix(in srgb,var(--rose) 40%,transparent);border-radius:28px;overflow:hidden;
+  box-shadow:var(--shadow);display:flex;flex-direction:column;
+  content-visibility:auto;contain-intrinsic-size:430px;
+  transition:transform .35s ease,box-shadow .35s ease;
+}
+.card:hover{transform:translateY(-6px);box-shadow:0 18px 40px color-mix(in srgb,var(--rose-deep) 25%,transparent)}
+.pic{aspect-ratio:4/5;background:linear-gradient(160deg,var(--lav),var(--blush));display:grid;place-items:center;overflow:hidden}
+.pic img{width:100%;height:100%;object-fit:cover;transition:transform .6s ease}
+.card:hover .pic img{transform:scale(1.05)}
+.pic svg{width:56px;height:56px;stroke:#fff;fill:none;stroke-width:1.1}
+.body{padding:18px 20px 22px;display:flex;flex-direction:column;gap:6px;flex:1}
+.body h3{font-size:1.45rem}
+.price{align-self:flex-start;background:var(--blush);color:var(--rose-deep);font-weight:600;border-radius:999px;padding:3px 14px;font-size:.95rem}
+.actions{margin-top:auto;padding-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn{
+  font:inherit;font-weight:600;border:0;cursor:pointer;border-radius:999px;padding:10px 20px;
+  background:linear-gradient(135deg,var(--rose),var(--rose-deep));color:#fff;
+  box-shadow:0 6px 16px color-mix(in srgb,var(--rose-deep) 30%,transparent);transition:transform .2s,box-shadow .2s;
+}
+.btn:hover{transform:translateY(-2px);box-shadow:0 10px 20px color-mix(in srgb,var(--rose-deep) 38%,transparent)}
+.btn:disabled{opacity:.6;cursor:wait;transform:none}
+.link{color:var(--lav-deep);text-decoration:none;font-size:.95rem;border-bottom:1px solid transparent}
+.link:hover{border-color:var(--lav-deep)}
+.btn:focus-visible,.link:focus-visible,input:focus-visible{outline:2px solid var(--lav-deep);outline-offset:3px}
+.card.reserved{background:color-mix(in srgb,var(--blush) 55%,#fff)}
+.card.reserved .pic{filter:saturate(.6) opacity(.7)}
+.link.cancel{background:none;border:0;cursor:pointer;font:inherit;font-size:.9rem;color:var(--rose-deep);padding:0;text-decoration:underline}
+.badge{
+  position:absolute;top:14px;left:14px;background:rgba(255,255,255,.92);color:var(--rose-deep);
+  border-radius:999px;padding:6px 14px;font-weight:600;font-size:.9rem;box-shadow:var(--shadow);
+}
+.state{text-align:center;padding:50px 0;opacity:.8;font-size:1.1rem}
+/* modal */
+dialog{
+  border:0;border-radius:28px;padding:34px 30px 28px;max-width:400px;width:calc(100% - 40px);
+  background:var(--cream);color:var(--ink);box-shadow:0 30px 70px rgba(90,65,71,.3);
+  margin:auto;animation:pop .3s ease;
+}
+dialog::backdrop{background:color-mix(in srgb,var(--lav-deep) 35%,transparent);backdrop-filter:blur(4px)}
+@keyframes pop{from{opacity:0;transform:scale(.94) translateY(10px)}to{opacity:1;transform:none}}
+dialog h2{font-size:1.9rem;margin-bottom:6px}
+dialog p{font-size:.95rem;opacity:.85;margin-bottom:18px}
+label{display:block;font-size:.9rem;margin:12px 0 4px}
+input{
+  width:100%;font:inherit;color:inherit;padding:11px 16px;border-radius:14px;
+  border:1.5px solid var(--lav);background:#fff;
+}
+.row{display:flex;gap:10px;justify-content:flex-end;margin-top:22px}
+.btn.ghost{background:transparent;color:var(--ink);box-shadow:none;border:1.5px solid var(--lav)}
+.err{color:#b24a5a;font-size:.9rem;margin-top:10px;min-height:1.2em}
+/* admin */
+#admin,#adminProfile,#adminTheme{
+  display:none;max-width:560px;margin:0 auto 44px;padding:26px 28px 30px;border-radius:26px;
+  background:rgba(255,255,255,.8);box-shadow:var(--shadow);border:1.5px dashed var(--gold);
+}
+#admin h2,#adminProfile h2,#adminTheme h2{font-size:1.7rem}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:640px){
+  .hero{padding:48px 16px 24px}.deco{display:none}
+  .hero h1{font-size:2.6rem}.hero p{font-size:.98rem}
+  main{padding:8px 14px 60px}
+  .grid{grid-template-columns:repeat(2,1fr);gap:14px}
+  .card{border-radius:20px}
+  .body{padding:12px 12px 14px}.body h3{font-size:1.1rem}
+  .btn{padding:8px 14px;font-size:.9rem}.link{font-size:.88rem}
+  .price{font-size:.85rem;padding:2px 10px}
+  .badge{top:8px;left:8px;font-size:.78rem;padding:4px 10px}
+  .tp{font-size:1.2rem;padding:6px 16px}
+  .cat h2{font-size:1.5rem}
+  .filters{grid-template-columns:1fr 1fr;padding:14px;gap:12px}
+  input,select{font-size:16px}
+  dialog{padding:26px 20px 22px}
+  #admin,#adminProfile,#adminTheme{padding:20px 18px 24px}.back{left:14px;top:12px}
+}
+@media (max-width:360px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <a id="back" class="link back" hidden>← Все списки</a>
+  <span class="deco d1" aria-hidden="true">♡</span><span class="deco d2" aria-hidden="true">✦</span>
+  <span class="deco d3" aria-hidden="true">✦</span><span class="deco d4" aria-hidden="true">♡</span>
+  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12M12 8c-2-4-6-3-5 0 .6 1.5 3 1 5 0zM12 8c2-4 6-3 5 0-.6 1.5-3 1-5 0z"/></svg>
+  <h1 id="title">Мой вишлист</h1>
+  <p id="intro">Если захочется меня порадовать — выбери подарок и нажми «Хочу подарить», чтобы никто не купил то же самое.</p>
+  <div id="total" class="total" hidden></div>
+</header>
+
+<main>
+  <section id="admin">
+    <h2>Новое желание</h2>
+    <form id="addForm">
+      <label for="aUrl">Ссылка на товар в магазине</label>
+      <input id="aUrl" type="url" placeholder="https://…">
+      <div class="row" style="margin-top:10px"><button class="btn ghost" type="button" id="aFill">Подтянуть по ссылке</button></div>
+      <label for="aTitle">Название</label><input id="aTitle" required maxlength="40">
+      <label for="aPrice">Цена и валюта</label>
+      <div class="pr"><input id="aPrice" inputmode="decimal" placeholder="например, 3490">
+        <select id="aCur" aria-label="Валюта"><option>BYN</option><option>EUR</option><option>USD</option><option>RUB</option><option>PLN</option><option>UAH</option><option>GBP</option><option>CNY</option></select></div>
+      <label for="aCat">Категория</label><input id="aCat" list="catList" maxlength="30" placeholder="например, Для дома"><datalist id="catList"></datalist>
+      <label for="aImage">Ссылка на фото</label><input id="aImage" type="url" placeholder="https://… (прямая ссылка на картинку)">
+      <div class="err" id="aErr" role="status"></div>
+      <div class="row"><button class="btn" type="submit">Добавить в список</button></div>
+    </form>
+  </section>
+
+  <section id="adminTheme">
+    <h2>Оформление</h2>
+    <form id="themeForm">
+      <label>Цветовая тема</label>
+      <div class="themes" id="themes" role="radiogroup" aria-label="Цветовая тема"></div>
+      <label for="tBurst">Что вылетает при нажатии на кнопки</label>
+      <input id="tBurst" maxlength="30" placeholder="🦄💖✨">
+      <div class="presets" id="burstPresets"></div>
+      <label for="tDeco">Плавающие элементы в шапке</label>
+      <input id="tDeco" maxlength="12" placeholder="♡✦">
+      <div class="presets" id="decoPresets"></div>
+      <div class="err" id="tErr" role="status"></div>
+      <div class="row"><button class="btn" type="submit">Сохранить оформление</button></div>
+    </form>
+  </section>
+
+  <section id="adminProfile">
+    <h2>Новый профиль</h2>
+    <form id="profForm">
+      <label for="pName">Имя</label><input id="pName" required maxlength="40" placeholder="например, Вишлист Ани">
+      <label for="pIntro">Подпись под заголовком (необязательно)</label><input id="pIntro" maxlength="200">
+      <label for="pSlug">Адрес (необязательно)</label><input id="pSlug" maxlength="30" pattern="[a-z0-9-]+" placeholder="пусто: случайный, его не угадать">
+      <label for="pSecret">Секрет админки (необязательно)</label><input id="pSecret" maxlength="40" pattern="[A-Za-z0-9_-]{6,40}" placeholder="пусто: создастся случайный">
+      <div class="err" id="pErr" role="status"></div>
+      <div class="pres" id="pResult"></div>
+      <div class="row"><button class="btn" type="submit">Создать профиль</button></div>
+    </form>
+  </section>
+
+  <div id="filters" class="filters" hidden>
+    <label class="f"><span>Категория</span><select id="fCat"></select></label>
+    <div class="f wide"><span>Цена, BYN</span>
+      <div class="pr">
+        <input id="fMin" type="number" min="0" inputmode="decimal" placeholder="от" aria-label="Цена от">
+        <input id="fMax" type="number" min="0" inputmode="decimal" placeholder="до" aria-label="Цена до">
+      </div>
+    </div>
+    <label class="f"><span>Сортировка</span><select id="fSort">
+      <option value="">По умолчанию</option>
+      <option value="desc">Цена: от большей к меньшей</option>
+      <option value="asc">Цена: от меньшей к большей</option>
+    </select></label>
+    <button class="link cancel" id="fReset" type="button">Сбросить фильтры</button>
+  </div>
+  <div id="grid"><div class="grid" aria-hidden="true"><article class="card sk"><div class="pic"></div><div class="body"><div class="line" style="width:70%"></div><div class="line" style="width:40%"></div></div></article><article class="card sk"><div class="pic"></div><div class="body"><div class="line" style="width:70%"></div><div class="line" style="width:40%"></div></div></article><article class="card sk"><div class="pic"></div><div class="body"><div class="line" style="width:70%"></div><div class="line" style="width:40%"></div></div></article><article class="card sk"><div class="pic"></div><div class="body"><div class="line" style="width:70%"></div><div class="line" style="width:40%"></div></div></article></div></div>
+  <div id="state" class="state"></div>
+</main>
+
+<dialog id="modal">
+  <form id="reserveForm" method="dialog">
+    <h2>Хочу подарить</h2>
+    <p id="mTitle"></p>
+    <label for="mName">Как тебя зовут?</label>
+    <input id="mName" required maxlength="60" autocomplete="given-name">
+    <div class="err" id="mErr" role="status"></div>
+    <div class="row">
+      <button class="btn ghost" type="button" id="mCancel">Отмена</button>
+      <button class="btn" type="submit" id="mOk">Забронировать</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="editModal">
+  <form id="editForm" method="dialog">
+    <h2>Изменить подарок</h2>
+    <label for="eTitle">Название</label><input id="eTitle" required maxlength="40">
+    <label for="ePrice">Цена и валюта</label>
+    <div class="pr"><input id="ePrice" inputmode="decimal"><select id="eCur" aria-label="Валюта"></select></div>
+    <label for="eCat">Категория</label><input id="eCat" list="catList" maxlength="30">
+    <label for="eImage">Ссылка на фото</label><input id="eImage" type="url" placeholder="https://…">
+    <label for="eUrl">Ссылка на товар</label><input id="eUrl" type="url" placeholder="https://…">
+    <div class="err" id="eErr" role="status"></div>
+    <div class="row">
+      <button class="btn ghost" type="button" id="eCancel">Отмена</button>
+      <button class="btn" type="submit" id="eOk">Сохранить</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+// ВСТАВЬ СЮДА URL веб-приложения Google Apps Script (заканчивается на /exec)
+const API_URL = 'PASTE_YOUR_WEB_APP_URL_HERE';
+
+const ADMIN_SECRET = new URLSearchParams(location.search).get('admin');
+const PROFILE = new URLSearchParams(location.search).get('p');
+const DEFAULT_INTRO = 'Выбери подарок и нажми «Хочу подарить» — так никто не купит то же самое.';
+const pageUrl = slug => {
+  const q = new URLSearchParams();
+  if (slug) q.set('p', slug);
+  if (ADMIN_SECRET) q.set('admin', ADMIN_SECRET);
+  const s = q.toString();
+  return location.pathname + (s ? '?' + s : '');
+};
+const $ = id => document.getElementById(id);
+const grid = $('grid'), stateEl = $('state'), modal = $('modal');
+let items = [], current = null, mine = {}, curSlug = '', profiles = [], ROLE = '';
+try { mine = JSON.parse(localStorage.getItem('wl_mine') || '{}'); } catch (_) {}
+const saveMine = () => { try { localStorage.setItem('wl_mine', JSON.stringify(mine)); } catch (_) {} };
+
+function burst(x, y, n = 14) {
+  if (matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+  const set = BURST;
+  const host = document.querySelector('dialog[open]') || document.body; // поверх открытого окна
+  for (let i = 0; i < n; i++) {
+    const s = document.createElement('span');
+    s.className = 'fly';
+    s.textContent = set[Math.floor(Math.random() * set.length)];
+    s.style.left = x + 'px'; s.style.top = y + 'px';
+    s.style.fontSize = (1.1 + Math.random() * 1.2) + 'rem';
+    host.appendChild(s);
+    const a = Math.random() * Math.PI * 2, d = 60 + Math.random() * 120;
+    const dx = Math.cos(a) * d, dy = Math.sin(a) * d - 60;
+    s.animate([
+      {transform: 'translate(-50%,-50%) scale(.3)', opacity: 1},
+      {transform: `translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px)) scale(1) rotate(${(Math.random() - .5) * 60}deg)`, opacity: 1, offset: .6},
+      {transform: `translate(calc(-50% + ${dx}px),calc(-50% + ${dy + 90}px)) scale(.8)`, opacity: 0}
+    ], {duration: 1100 + Math.random() * 500, easing: 'cubic-bezier(.2,.7,.3,1)'}).onfinish = () => s.remove();
+  }
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('.btn:not(.ghost)');
+  if (b) { const q = b.getBoundingClientRect(); burst(q.left + q.width / 2, q.top + q.height / 2); }
+});
+
+async function deleteItem(id, btn) {
+  const it = items.find(i => String(i.id) === id);
+  if (!confirm('Удалить «' + clip(it ? it.title : '') + '» из списка? Это нельзя отменить.')) return;
+  btn.disabled = true;
+  try {
+    const r = await api({action: 'delete', id, secret: ADMIN_SECRET});
+    if (r.ok) { await load(); return; }
+    alert(r.error === 'forbidden' ? 'Неверный секрет в адресе страницы.' : r.error === 'unknown_action' ? STALE : 'Не получилось удалить: ' + (r.error || 'нет ответа'));
+  } catch (_) { alert('Нет связи с сервером.'); }
+  btn.disabled = false;
+}
+
+async function cancelReservation(id, btn) {
+  let name = mine[id];
+  if (ROLE) { if (!confirm('Снять бронь с этого подарка?')) return; }
+  else if (!name) { name = (prompt('Введи имя, на которое оформляли бронь:') || '').trim(); if (!name) return; }
+  else if (!confirm('Отменить бронь этого подарка?')) return;
+  btn.disabled = true;
+  try {
+    const r = await api({action: 'cancel', id, name: name || '', secret: ADMIN_SECRET || ''});
+    if (r.ok) { delete mine[id]; saveMine(); await load(); return; }
+    alert(r.error === 'wrong_name' ? 'Имя не совпадает с тем, на которое оформляли бронь.' : 'Не получилось отменить бронь. Попробуй ещё раз.');
+  } catch (_) { alert('Нет связи с сервером.'); }
+  btn.disabled = false;
+}
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clip = s => { s = String(s ?? ''); return s.length > 40 ? s.slice(0, 39).trimEnd() + '…' : s; };
+const normUrl = u => {
+  u = String(u || '').trim().toLowerCase().replace(/#.*$/, '').replace(/^https?:\/\/(www\.)?/, '');
+  const i = u.indexOf('?');
+  const base = (i < 0 ? u : u.slice(0, i)).replace(/\/+$/, '');
+  const q = i < 0 ? '' : u.slice(i + 1).split('&').filter(x => x && !/^(utm_|fbclid|gclid|yclid)/.test(x)).join('&');
+  return q ? base + '?' + q : base;
+};
+const isDup = u => { const k = normUrl(u); return !!k && items.some(i => normUrl(i.url) === k); };
+const safeUrl = u => /^https?:\/\//i.test(u) ? esc(u) : '';
+const GIFT = '<svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M5 12v8h14v-8M12 8v12M12 8c-2-4-6-3-5 0 .6 1.5 3 1 5 0zM12 8c2-4 6-3 5 0-.6 1.5-3 1-5 0z"/></svg>';
+
+async function api(payload) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'text/plain;charset=utf-8'}, // без preflight
+    body: JSON.stringify({profile: curSlug, ...payload})
+  });
+  return res.json();
+}
+
+function setAdmin() {
+  $('admin').style.display = ROLE && curSlug ? 'block' : 'none';
+  $('adminTheme').style.display = ROLE && curSlug ? 'block' : 'none';
+  $('adminProfile').style.display = ROLE === 'master' ? 'block' : 'none';
+}
+
+const absUrl = (slug, secret) => location.origin + location.pathname + '?p=' + encodeURIComponent(slug) +
+  (secret ? '&admin=' + encodeURIComponent(secret) : '');
+
+async function copyLink(btn) {
+  const url = btn.dataset.copy, old = btn.textContent;
+  try { await navigator.clipboard.writeText(url); btn.textContent = 'Скопировано ✓'; setTimeout(() => { btn.textContent = old; }, 1500); }
+  catch (_) { prompt('Скопируй ссылку:', url); }
+}
+
+async function newSecret(slug) {
+  if (!confirm('Выдать новый секрет? Старая админ-ссылка этого профиля перестанет работать.')) return;
+  try {
+    const r = await api({action: 'setSecret', secret: ADMIN_SECRET, profile: slug});
+    if (r.ok) await load(); else alert(r.error === 'unknown_action' ? STALE : 'Не получилось: ' + (r.error || 'нет ответа'));
+  } catch (_) { alert('Нет связи с сервером.'); }
+}
+
+function showPicker() {
+  curSlug = ''; items = []; resetLook();
+  const master = ROLE === 'master';
+  $('title').textContent = master ? 'Профили' : 'Вишлист';
+  $('intro').textContent = master ? 'Все списки. Ссылки и секреты видишь только ты.' : 'Чтобы открыть список, нужна персональная ссылка.';
+  document.title = $('title').textContent;
+  $('total').hidden = true; $('filters').hidden = true; $('back').hidden = true;
+  setAdmin();
+  if (!master || !profiles.length) {
+    grid.innerHTML = ''; stateEl.style.display = master ? 'block' : 'none'; stateEl.textContent = 'Профилей пока нет.'; return;
+  }
+  stateEl.style.display = 'none';
+  grid.innerHTML = profiles.map(p => `<div class="prow">
+      <div><b>${esc(p.name)}</b><small>${esc(absUrl(p.slug))}</small></div>
+      <div class="pact">
+        <a class="link" href="${pageUrl(p.slug)}">Открыть</a>
+        <button class="link cancel" data-copy="${esc(absUrl(p.slug))}">Ссылка для гостей</button>
+        ${p.secret ? `<button class="link cancel" data-copy="${esc(absUrl(p.slug, p.secret))}">Админ-ссылка</button>` : ''}
+        <button class="link cancel" data-newsecret="${esc(p.slug)}">${p.secret ? 'Новый секрет' : 'Создать секрет'}</button>
+      </div></div>`).join('');
+}
+
+function showMissing() {
+  curSlug = ''; items = []; resetLook();
+  $('total').hidden = true; $('filters').hidden = true; grid.innerHTML = '';
+  $('back').hidden = ROLE !== 'master'; $('back').href = pageUrl('');
+  setAdmin();
+  stateEl.style.display = 'block'; stateEl.textContent = 'Такого списка не существует.';
+}
+
+const CKEY = 'wl_cache:' + (PROFILE || '');
+let rendered = false;
+
+function prepareItems() {
+  for (const it of items) {
+    it._price = parsePrice(it.price);
+    it._byn = it._price.n === undefined ? null : toByn(it._price.n, it._price.cur);
+    it._cat = catOf(it);
+  }
+}
+
+function applyData(data) {
+  ROLE = data.role || '';
+  profiles = data.profiles || [];
+  if (data.error === 'not_found') return showMissing();
+  if (!data.profile) return showPicker();
+  curSlug = data.profile.slug;
+  items = data.items || [];
+  prepareItems();
+  $('title').textContent = data.profile.name;
+  $('intro').textContent = data.profile.intro || DEFAULT_INTRO;
+  document.title = data.profile.name;
+  fillLook(data.profile);
+  $('back').hidden = ROLE !== 'master'; $('back').href = pageUrl('');
+  setAdmin();
+  render();
+}
+
+async function load() {
+  try {
+    // сначала мгновенно показываем сохранённую копию, потом обновляем с сервера
+    if (!rendered && PROFILE) {
+      try { const c = JSON.parse(localStorage.getItem(CKEY) || 'null'); if (c && c.profile) { applyData(c); rendered = true; } } catch (_) {}
+    }
+    const q = new URLSearchParams();
+    if (PROFILE) q.set('p', PROFILE);
+    if (ADMIN_SECRET) q.set('admin', ADMIN_SECRET);
+    const res = await fetch(API_URL + (q.toString() ? '?' + q : ''));
+    const data = await res.json();
+    applyData(data); rendered = true;
+    try {
+      if (data.profile) localStorage.setItem(CKEY, JSON.stringify({profile: data.profile, items: data.items}));
+      else if (data.error === 'not_found') localStorage.removeItem(CKEY);
+    } catch (_) {}
+  } catch (e) {
+    if (!rendered) { grid.innerHTML = ''; stateEl.style.display = 'block'; stateEl.textContent = 'Не получилось загрузить список. Проверь API_URL и обнови страницу.'; }
+  }
+}
+
+const THEMES = {
+  rose:     {name: 'Розовый',    cream:'#fff4f6', peach:'#ffd9dc', blush:'#fbd3dc', rose:'#f2a7b8', 'rose-deep':'#d9708a', lav:'#f0dff5', 'lav-deep':'#a07ab8', beige:'#ffe9e3', ink:'#5e3a46', gold:'#c9956b'},
+  mint:     {name: 'Мятный',     cream:'#f1faf4', peach:'#d8f1e2', blush:'#cdeedb', rose:'#7cc79b', 'rose-deep':'#3f9468', lav:'#dcefe9', 'lav-deep':'#5f9e94', beige:'#eaf6e4', ink:'#2c4a3b', gold:'#b3a05a'},
+  sky:      {name: 'Голубой',    cream:'#f1f8fd', peach:'#d6e9fa', blush:'#cbe1f6', rose:'#7fb2e6', 'rose-deep':'#4585c9', lav:'#e1e7fb', 'lav-deep':'#7a86c8', beige:'#e6f0fa', ink:'#2a3d57', gold:'#bf9f6c'},
+  lavender: {name: 'Лавандовый', cream:'#f8f4fd', peach:'#ebddf8', blush:'#e3d3f5', rose:'#b79ae0', 'rose-deep':'#8460c0', lav:'#f1e6fb', 'lav-deep':'#6f5aa8', beige:'#f3ecfa', ink:'#43355c', gold:'#c7a17a'},
+  peach:    {name: 'Персиковый', cream:'#fff6ef', peach:'#ffe0c9', blush:'#ffd3b8', rose:'#f29a6a', 'rose-deep':'#da6d36', lav:'#fde9c8', 'lav-deep':'#c0813a', beige:'#fff0df', ink:'#5a3a2a', gold:'#c58a4a'},
+  mocha:    {name: 'Мокко',      cream:'#fbf5ee', peach:'#efdfcd', blush:'#e8d3bd', rose:'#c39a74', 'rose-deep':'#94653f', lav:'#f1e6da', 'lav-deep':'#8a6a52', beige:'#f6ece0', ink:'#4a3426', gold:'#b88a4a'}
+};
+const DEFAULT_BURST = ['🦄', '💖', '🦄', '💗', '✨', '💕'];
+const DEFAULT_DECO = ['♡', '✦', '✦', '♡'];
+let BURST = DEFAULT_BURST;
+const graphemes = s => (typeof Intl !== 'undefined' && Intl.Segmenter
+  ? [...new Intl.Segmenter(undefined, {granularity: 'grapheme'}).segment(String(s || ''))].map(x => x.segment)
+  : Array.from(String(s || ''))).filter(x => x.trim());
+
+function applyTheme(key) {
+  const t = THEMES[key] || THEMES.rose;
+  Object.keys(t).forEach(k => { if (k !== 'name') document.documentElement.style.setProperty('--' + k, t[k]); });
+}
+function applyBurst(s) { const g = graphemes(s).slice(0, 10); BURST = g.length ? g : DEFAULT_BURST; }
+function applyDeco(s) {
+  const g = graphemes(s).slice(0, 6), sym = g.length ? g : DEFAULT_DECO;
+  document.querySelectorAll('.deco').forEach((el, i) => { el.textContent = sym[i % sym.length]; });
+}
+function resetLook() { applyTheme('rose'); applyBurst(''); applyDeco(''); }
+
+// Редактор оформления для владельца
+let draftTheme = 'rose';
+const BURST_PRESETS = ['🦄💖💗💕✨', '🌿🍃🌸💚✨', '🐬🦋💙🌊✨', '🦋💜🌙⭐✨', '🍑🧡🌼🔥✨', '☕🍪🤎🧸✨'];
+const DECO_PRESETS = ['♡✦', '✿❀', '❄✦', '☾★', '☀✧', '❥✦'];
+function renderThemes() {
+  $('themes').innerHTML = Object.keys(THEMES).map(k => {
+    const t = THEMES[k];
+    return `<button type="button" class="sw ${k === draftTheme ? 'on' : ''}" data-theme="${k}" role="radio" aria-checked="${k === draftTheme}"><i style="background:linear-gradient(135deg,${t.rose},${t['rose-deep']})"></i>${t.name}</button>`;
+  }).join('');
+}
+function fillLook(p) {
+  draftTheme = THEMES[p.theme] ? p.theme : 'rose';
+  $('tBurst').value = p.burst || ''; $('tDeco').value = p.deco || '';
+  applyTheme(draftTheme); applyBurst(p.burst); applyDeco(p.deco); renderThemes();
+}
+$('burstPresets').innerHTML = BURST_PRESETS.map(x => `<button type="button" class="pre" data-fill="tBurst">${x}</button>`).join('');
+$('decoPresets').innerHTML = DECO_PRESETS.map(x => `<button type="button" class="pre" data-fill="tDeco">${x}</button>`).join('');
+$('themes').addEventListener('click', e => {
+  const b = e.target.closest('.sw'); if (!b) return;
+  draftTheme = b.dataset.theme; applyTheme(draftTheme); renderThemes();
+});
+$('themeForm').addEventListener('click', e => {
+  const b = e.target.closest('.pre'); if (!b) return;
+  $(b.dataset.fill).value = b.textContent;
+  b.dataset.fill === 'tBurst' ? applyBurst(b.textContent) : applyDeco(b.textContent);
+});
+$('tBurst').addEventListener('input', () => applyBurst($('tBurst').value));
+$('tDeco').addEventListener('input', () => applyDeco($('tDeco').value));
+$('themeForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = $('tErr'); err.textContent = 'Сохраняем…';
+  try {
+    const r = await api({action: 'setTheme', secret: ADMIN_SECRET, theme: draftTheme, burst: $('tBurst').value.trim(), deco: $('tDeco').value.trim()});
+    err.textContent = r.ok ? 'Оформление сохранено ✓' : r.error === 'forbidden' ? 'Нет прав на изменение этого списка.'
+      : r.error === 'unknown_action' ? STALE : 'Не получилось сохранить: ' + (r.error || 'нет ответа');
+  } catch (_) { err.textContent = 'Нет связи с сервером.'; }
+});
+
+const STALE = 'Скрипт в Google не обновлён: выпусти новую версию развёртывания (Развернуть → Управление развертываниями → Изменить → Новая версия).';
+const SYM = {BYN: 'BYN', EUR: '€', USD: '$', RUB: '₽', PLN: 'zł', UAH: '₴', GBP: '£', CNY: '¥'};
+// Курсы к 1 BYN по данным НБРБ (за 1 единицу валюты). Меняй вручную, когда захочется обновить.
+const RATES_DATE = '03.10.2026';
+const RATES = {BYN: 1, USD: 3.0051, EUR: 3.3860, RUB: 0.036121, PLN: 0.77375, UAH: 0.067115, GBP: 3.9663, CNY: 0.45035};
+const byCur = (a, b) => a === 'BYN' ? -1 : b === 'BYN' ? 1 : a.localeCompare(b);
+
+function parsePrice(s) {
+  s = String(s ?? '').trim();
+  const m = s.match(/\d[\d\s\u00a0]*(?:[.,]\d{1,2})?/);
+  if (!m) return {};
+  const n = parseFloat(m[0].replace(/[\s\u00a0]/g, '').replace(',', '.'));
+  let cur = null;
+  if (/byn|\bbr\b|бел|р\./i.test(s)) cur = 'BYN';
+  else if (/₽|rub|руб/i.test(s)) cur = 'RUB';
+  else if (/\$|usd/i.test(s)) cur = 'USD';
+  else if (/€|eur/i.test(s)) cur = 'EUR';
+  else if (/zł|pln|злот/i.test(s)) cur = 'PLN';
+  else if (/₴|грн|uah/i.test(s)) cur = 'UAH';
+  else if (/£|gbp/i.test(s)) cur = 'GBP';
+  else if (/¥|cny|юан/i.test(s)) cur = 'CNY';
+  else { const c = s.toUpperCase().match(/\b[A-Z]{3}\b/); if (c) cur = c[0]; }
+  return {n, cur: cur || 'BYN', explicit: !!cur};
+}
+const toByn = (n, cur) => RATES[cur] ? n * RATES[cur] : null;
+const money = (n, cur) => n.toLocaleString('ru-RU', {maximumFractionDigits: 2}) + ' ' + (SYM[cur] || cur);
+const priceLabel = it => {
+  const p = it._price || parsePrice(it.price);
+  if (p.n === undefined) return String(it.price ?? '');
+  const b = p.cur !== 'BYN' && toByn(p.n, p.cur);
+  return money(p.n, p.cur) + (b ? ` (≈ ${money(b, 'BYN')})` : '');
+};
+
+function updateTotal() {
+  let sum = 0, skipped = 0;
+  const own = {};
+  items.forEach(it => {
+    const p = it._price || parsePrice(it.price);
+    if (!p.n) return;
+    const b = it._byn !== undefined ? it._byn : toByn(p.n, p.cur);
+    if (b === null) { skipped++; return; }
+    sum += b;
+    if (p.cur !== 'BYN') own[p.cur] = (own[p.cur] || 0) + p.n;
+  });
+  const el = $('total'), parts = Object.keys(own).sort(byCur).map(c => money(own[c], c));
+  el.hidden = !sum;
+  if (!sum) return;
+  el.innerHTML = '<span class="tl">Всего желаний на сумму</span>' +
+    `<span class="tp">${parts.length ? '≈ ' : ''}${esc(money(sum, 'BYN'))}</span>` +
+    (parts.length ? `<span class="tl">из них в валюте: ${esc(parts.join(', '))} · курсы НБРБ на ${RATES_DATE}</span>` : '') +
+    (skipped ? `<span class="tl">без ${skipped} шт.: для их валюты нет курса</span>` : '');
+}
+
+function cardHtml(it) {
+    const img = safeUrl(it.image), link = safeUrl(it.url);
+    return `<article class="card ${it.reserved ? 'reserved' : ''}">
+      <div class="pic">${img ? `<img src="${img}" alt="${esc(it.title)}" loading="lazy" decoding="async" onerror="this.parentNode.innerHTML=GIFT">` : GIFT}</div>
+      ${it.reserved ? '<span class="badge">Забронировано</span>' : ''}
+      <div class="body">
+        <h3 title="${esc(it.title)}">${esc(clip(it.title))}</h3>
+        ${it.price ? `<div class="price">${esc(priceLabel(it))}</div>` : ''}
+        <div class="actions">
+          ${it.reserved ? `<button class="link cancel" data-cancel="${esc(it.id)}">Отменить бронь</button>` : `<button class="btn" data-id="${esc(it.id)}">Хочу подарить</button>`}
+          ${link ? `<a class="link" href="${link}" target="_blank" rel="noopener">В магазин</a>` : ''}
+          ${ROLE ? `<button class="link cancel" data-edit="${esc(it.id)}">Изменить</button><button class="link cancel" data-del="${esc(it.id)}">Удалить</button>` : ''}
+        </div>
+      </div>
+    </article>`;
+}
+
+const catOf = it => it._cat || (String(it.category || '').trim() || 'Разное');
+let fCat = '', fMin = null, fMax = null, fSort = '';
+const bynOf = it => it._byn !== undefined ? it._byn : (() => { const p = parsePrice(it.price); return p.n === undefined ? null : toByn(p.n, p.cur); })();
+
+function passes(it) {
+  if (fCat && catOf(it) !== fCat) return false;
+  if (fMin !== null || fMax !== null) {
+    const v = bynOf(it);
+    if (v === null) return false;
+    if (fMin !== null && v < fMin) return false;
+    if (fMax !== null && v > fMax) return false;
+  }
+  return true;
+}
+
+function cmp(a, b) {
+  const va = bynOf(a), vb = bynOf(b);
+  if (va === null || vb === null) return (va === null) - (vb === null);
+  return fSort === 'asc' ? va - vb : vb - va;
+}
+
+function render() {
+  updateTotal();
+  const counts = Object.create(null);
+  for (const it of items) { const c = catOf(it); counts[c] = (counts[c] || 0) + 1; }
+  const cats = Object.keys(counts);
+  if (fCat && !cats.includes(fCat)) fCat = '';
+  $('catList').innerHTML = cats.map(c => `<option value="${esc(c)}">`).join('');
+  $('filters').hidden = !items.length;
+  $('fCat').innerHTML = '<option value="">Все категории</option>' + cats.map(c =>
+    `<option value="${esc(c)}">${esc(c)} (${counts[c]})</option>`).join('');
+  $('fCat').value = fCat;
+
+  const list = items.filter(passes);
+  if (fSort) list.sort(cmp);
+  stateEl.style.display = list.length ? 'none' : 'block';
+  stateEl.textContent = items.length ? 'Ничего не нашлось. Попробуй изменить фильтры.' : 'Пока здесь пусто — скоро появятся желания.';
+  const groups = {};
+  list.forEach(it => (groups[catOf(it)] = groups[catOf(it)] || []).push(it));
+  grid.innerHTML = Object.keys(groups).map(c =>
+    `<section class="cat"><h2>${esc(c)}</h2><div class="grid">${groups[c].map(cardHtml).join('')}</div></section>`).join('');
+}
+
+$('fCat').onchange = e => { fCat = e.target.value; render(); };
+$('fSort').onchange = e => { fSort = e.target.value; render(); };
+const readNum = v => { v = String(v).replace(',', '.').trim(); return v === '' || isNaN(+v) ? null : +v; };
+let filterTimer = 0;
+['fMin', 'fMax'].forEach(id => $(id).addEventListener('input', () => {
+  fMin = readNum($('fMin').value); fMax = readNum($('fMax').value);
+  clearTimeout(filterTimer); filterTimer = setTimeout(render, 90);
 }));
 $('fReset').onclick = () => { fCat = fSort = ''; fMin = fMax = null; $('fMin').value = ''; $('fMax').value = ''; $('fSort').value = ''; render(); };
 
