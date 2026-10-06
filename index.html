@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Мой вишлист</title>
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Nunito:wght@400;600&display=swap" rel="stylesheet">
@@ -69,6 +71,9 @@ select:focus-visible{outline:2px solid var(--lav-deep);outline-offset:3px}
 .sw:focus-visible,.pre:focus-visible{outline:2px solid var(--lav-deep);outline-offset:3px}
 .presets{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .pre{font:inherit;border:1.5px solid var(--blush);background:#fff;border-radius:999px;padding:4px 12px;cursor:pointer}
+.sk .pic{background:linear-gradient(100deg,var(--blush) 30%,color-mix(in srgb,var(--blush) 40%,#fff) 50%,var(--blush) 70%);background-size:200% 100%;animation:shine 1.3s linear infinite}
+.sk .line{height:14px;border-radius:8px;background:color-mix(in srgb,var(--blush) 60%,#fff);margin:6px 0}
+@keyframes shine{to{background-position:-200% 0}}
 [hidden]{display:none!important}
 .fly{position:fixed;pointer-events:none;z-index:9999;will-change:transform,opacity}
 .total{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:24px;animation:rise 1s .4s ease both}
@@ -225,8 +230,8 @@ input{
     </select></label>
     <button class="link cancel" id="fReset" type="button">Сбросить фильтры</button>
   </div>
-  <div id="grid"></div>
-  <div id="state" class="state">Загружаем список…</div>
+  <div id="grid"><div class="grid" aria-hidden="true"><article class="card sk"><div class="pic"></div><div class="body"><div class="line" style="width:70%"></div><div class="line" style="width:40%"></div></div></article><article class="card sk"><div class="pic"></div><div class="body"><div class="line" style="width:70%"></div><div class="line" style="width:40%"></div></div></article><article class="card sk"><div class="pic"></div><div class="body"><div class="line" style="width:70%"></div><div class="line" style="width:40%"></div></div></article><article class="card sk"><div class="pic"></div><div class="body"><div class="line" style="width:70%"></div><div class="line" style="width:40%"></div></div></article></div></div>
+  <div id="state" class="state"></div>
 </main>
 
 <dialog id="modal">
@@ -262,7 +267,7 @@ input{
 
 <script>
 // ВСТАВЬ СЮДА URL веб-приложения Google Apps Script (заканчивается на /exec)
-const API_URL = 'https://script.google.com/macros/s/AKfycbwZFXXNrbpv-Y8Kl6X6Y4WKinJE2sf4ebu06LOHfrjgsBUUPmXTJE1VXowM0sVT91jr/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyOz9hrnVmvfz8IDT8FWFcbzjDBJKSaZ3zwV5TGpMqWH-1ElEMOb-AglONL8Kr9aSxn/exec';
 
 const ADMIN_SECRET = new URLSearchParams(location.search).get('admin');
 const PROFILE = new URLSearchParams(location.search).get('p');
@@ -406,28 +411,43 @@ function showMissing() {
   stateEl.style.display = 'block'; stateEl.textContent = 'Такого списка не существует.';
 }
 
+const CKEY = 'wl_cache:' + (PROFILE || '');
+let rendered = false;
+
+function applyData(data) {
+  ROLE = data.role || '';
+  profiles = data.profiles || [];
+  if (data.error === 'not_found') return showMissing();
+  if (!data.profile) return showPicker();
+  curSlug = data.profile.slug;
+  items = data.items || [];
+  $('title').textContent = data.profile.name;
+  $('intro').textContent = data.profile.intro || DEFAULT_INTRO;
+  document.title = data.profile.name;
+  fillLook(data.profile);
+  $('back').hidden = ROLE !== 'master'; $('back').href = pageUrl('');
+  setAdmin();
+  render();
+}
+
 async function load() {
   try {
+    // сначала мгновенно показываем сохранённую копию, потом обновляем с сервера
+    if (!rendered && PROFILE) {
+      try { const c = JSON.parse(localStorage.getItem(CKEY) || 'null'); if (c && c.profile) { applyData(c); rendered = true; } } catch (_) {}
+    }
     const q = new URLSearchParams();
     if (PROFILE) q.set('p', PROFILE);
     if (ADMIN_SECRET) q.set('admin', ADMIN_SECRET);
     const res = await fetch(API_URL + (q.toString() ? '?' + q : ''));
     const data = await res.json();
-    ROLE = data.role || '';
-    profiles = data.profiles || [];
-    if (data.error === 'not_found') return showMissing();
-    if (!data.profile) return showPicker();
-    curSlug = data.profile.slug;
-    items = data.items || [];
-    $('title').textContent = data.profile.name;
-    $('intro').textContent = data.profile.intro || DEFAULT_INTRO;
-    document.title = data.profile.name;
-    fillLook(data.profile);
-    $('back').hidden = ROLE !== 'master'; $('back').href = pageUrl('');
-    setAdmin();
-    render();
+    applyData(data); rendered = true;
+    try {
+      if (data.profile) localStorage.setItem(CKEY, JSON.stringify({profile: data.profile, items: data.items}));
+      else if (data.error === 'not_found') localStorage.removeItem(CKEY);
+    } catch (_) {}
   } catch (e) {
-    stateEl.textContent = 'Не получилось загрузить список. Проверь API_URL и обнови страницу.';
+    if (!rendered) { grid.innerHTML = ''; stateEl.style.display = 'block'; stateEl.textContent = 'Не получилось загрузить список. Проверь API_URL и обнови страницу.'; }
   }
 }
 
@@ -551,7 +571,7 @@ function updateTotal() {
 function cardHtml(it) {
     const img = safeUrl(it.image), link = safeUrl(it.url);
     return `<article class="card ${it.reserved ? 'reserved' : ''}">
-      <div class="pic">${img ? `<img src="${img}" alt="${esc(it.title)}" loading="lazy" onerror="this.parentNode.innerHTML=GIFT">` : GIFT}</div>
+      <div class="pic">${img ? `<img src="${img}" alt="${esc(it.title)}" loading="lazy" decoding="async" onerror="this.parentNode.innerHTML=GIFT">` : GIFT}</div>
       ${it.reserved ? '<span class="badge">Забронировано</span>' : ''}
       <div class="body">
         <h3 title="${esc(it.title)}">${esc(clip(it.title))}</h3>
