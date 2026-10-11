@@ -723,7 +723,7 @@ if (ADMIN_SECRET) {
     btn.disabled = true; err.textContent = 'Ищем данные на странице…';
     try {
       const r = await api({action: 'preview', secret: ADMIN_SECRET, url});
-      if (!r.ok) { err.textContent = r.error === 'forbidden' ? 'Неверный секрет в адресе страницы.' : 'Не получилось открыть страницу.'; }
+      if (!r.ok) { err.textContent = r.error === 'forbidden' ? 'Неверный секрет в адресе страницы.' : r.error === 'unknown_action' ? STALE : 'Не получилось открыть страницу' + (r.detail ? ': ' + r.detail : r.error ? ' (' + r.error + ')' : '') + '.'; }
       else {
         if (r.title) $('aTitle').value = clip(r.title);
         if (r.price) $('aPrice').value = r.price;
